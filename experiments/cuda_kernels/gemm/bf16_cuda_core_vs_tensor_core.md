@@ -13,6 +13,11 @@
 - shared memory 是什么
 - 为什么 reduction 需要同步
 
+涉及这些稳定术语时，这里尽量只给最短解释：
+
+- GPU 存储层次与 `L1/TEX` 见 [../../../notes/gpu_components.md](../../../notes/gpu_components.md)
+- `CUDA core / Tensor Core / FMA / MMA / WMMA / fragment` 见 [../../../notes/cuda_tensor_core_wmma.md](../../../notes/cuda_tensor_core_wmma.md)
+
 这里直接进入重点：
 
 - `bf16_gemm_cuda_core`
@@ -45,33 +50,7 @@
   - `mma_sync`
   - `store_matrix_sync`
 - 也就是说，真正切到了 Tensor Core 路线
-
-这里先把 `MMA` 这个词补清楚：
-
-- `MMA` = `Matrix Multiply-Accumulate`
-
-最直接的数学形式就是：
-
-```text
-C = A x B + C
-```
-
-如果写成 `WMMA` 代码里最常见的样子，就是：
-
-```cpp
-wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
-```
-
-它的含义就是：
-
-```text
-c_frag = a_frag x b_frag + c_frag
-```
-
-所以：
-
-- CUDA core 版核心是很多次标量 `FMA`
-- Tensor Core 版核心是很多次小块矩阵 `MMA`
+- 这里的 `mma_sync`、`MMA`、`WMMA` 都按 [../../../notes/cuda_tensor_core_wmma.md](../../../notes/cuda_tensor_core_wmma.md) 里的定义理解
 
 最重要的一句就是：
 
@@ -746,25 +725,11 @@ bf16_gemm_tensor_core avg_ms=0.0589  tflops=36.47
 - `Compute (SM) Throughput ≈ 22%`
 - `L1/TEX Cache Throughput ≈ 94%`
 
-这里第一次出现 `L1/TEX`，先做一个最够用的定义：
-
-- `L1/TEX` 是 `ncu` 里的一个合并口径
-- 可以先把它理解成：
-  - 离 `SM` 很近的一层 cache / load-store 通路
-  - 把 `L1 cache` 和 `texture` 相关通路放在一起统计
-
-所以当你看到：
-
-- `L1/TEX Cache Throughput` 很高
-
-最直接的意思不是“texture 在忙”，而是：
-
-- kernel 的数据访问在这层靠近计算单元的缓存/访存通路上压力很大
-
+这里的 `L1/TEX` 按 [../../../notes/gpu_components.md](../../../notes/gpu_components.md) 里的定义理解。  
 在当前这个 `bf16_gemm_tensor_core` 例子里，它主要是在提示：
 
 - Tensor Core 不是没在工作
-- 更大的问题是数据 feeding path，尤其是靠近 `SM` 这一层的 load/cache 路径已经很忙了
+- 更大的问题是数据 feeding path，尤其是靠近 `SM` 的 load/cache 路径已经很忙了
 
 这说明：
 

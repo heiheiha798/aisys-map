@@ -96,6 +96,8 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
 - `Compute (SM) Throughput` 反而只有 `22-28%`
 - occupancy 明显更高，尤其 `int4` 到了 `90.30%`
 
+这里的 `L1/TEX` 口径按 [../../../notes/gpu_components.md](../../../notes/gpu_components.md) 里的定义理解。
+
 这说明：
 
 - Tensor Core 的乘加路径已经切对了

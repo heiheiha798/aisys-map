@@ -11,6 +11,7 @@
 - `gemm/`
 - `layernorm/`
 - `embedding/`
+- `scatter/`
 
 ## 编译约定
 
@@ -74,3 +75,6 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
 - `embedding/`
   - `embedding lookup / gather`
   - 以不规则访存为入口理解 gather、cache、coalescing 和 memory-bound kernel
+- `scatter/`
+  - `scatter / index_add`
+  - 以不规则写和原子冲突为入口理解 scatter、contention 和 atomic updates

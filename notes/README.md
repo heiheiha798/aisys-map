@@ -16,3 +16,10 @@
 - 尽量用自己的话记录，而不是直接摘抄资料
 
 `review_notes.md` 可以作为这类内容的总入口，后续也可以继续拆成更细的单文件。
+
+当前比较关键的桥接笔记：
+
+- [attention_flash_bridge.md](/data/home/tianjianyang/code/aisys-map/notes/attention_flash_bridge.md)
+  - 把 `safe softmax`、`online softmax`、`causal attention`、`KV cache`、`FlashAttention` 接到同一条执行路径里
+- [cuda_tensor_core_wmma.md](/data/home/tianjianyang/code/aisys-map/notes/cuda_tensor_core_wmma.md)
+  - 把 `CUDA core`、`Tensor Core`、`WMMA`、低精度 GEMM 和 `ncu` 观察放到同一张图里

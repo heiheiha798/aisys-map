@@ -65,3 +65,4 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
   - 以 `(m, l)` 状态合并为入口理解 online softmax、warp-level reduction 和通往 FlashAttention 的桥
 - `gemm/`
   - matrix multiply / tiling / shared memory reuse
+  - 分开对比 `CUDA core` tiled GEMM 和 `Tensor Core / WMMA` GEMM

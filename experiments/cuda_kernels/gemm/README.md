@@ -1,0 +1,139 @@
+# GEMM: CUDA Core vs Tensor Core
+
+这个目录现在有两组 GEMM：
+
+- `*_cuda_core`
+  - shared-memory tiled GEMM
+  - 标量 `FMA` 路径
+  - 作为传统 CUDA core 对照组
+- `*_tensor_core`
+  - `WMMA` / Tensor Core 路径
+  - 真正用低精度 Tensor Core 做矩阵乘加
+
+## 文件
+
+### CUDA core 对照版
+
+- `fp32_gemm_cuda_core.cu`
+- `fp16_gemm_cuda_core.cu`
+- `bf16_gemm_cuda_core.cu`
+- `int8_gemm_cuda_core.cu`
+- `int4_gemm_cuda_core.cu`
+- `gemm_cuda_core_common.cuh`
+
+### Tensor Core 版
+
+- `fp16_gemm_tensor_core.cu`
+- `bf16_gemm_tensor_core.cu`
+- `int8_gemm_tensor_core.cu`
+- `int4_gemm_tensor_core.cu`
+- `gemm_tensor_core_common.cuh`
+
+## 为什么分两条线
+
+因为这两组 kernel 在回答两个不同问题：
+
+- `cuda_core`
+  - shared memory tiling、寄存器累加、普通 `FMA` 到底能做到什么程度
+- `tensor_core`
+  - 真正切到 `WMMA` / Tensor Core 之后，吞吐和瓶颈会怎么变化
+
+最重要的一点是：
+
+- 低精度数据类型本身，不等于低精度 Tensor Core 计算
+- 真正决定计算路径的是 kernel 里到底走普通 `FMA`，还是走 `mma_sync`
+
+## 当前全部可运行的 kernel
+
+```bash
+make
+
+./fp32_gemm_cuda_core
+./fp16_gemm_cuda_core
+./fp16_gemm_tensor_core
+./bf16_gemm_cuda_core
+./bf16_gemm_tensor_core
+./int8_gemm_cuda_core
+./int8_gemm_tensor_core
+./int4_gemm_cuda_core
+./int4_gemm_tensor_core
+```
+
+## 当前实测
+
+下面是当前这台 `RTX 4090 / sm_89` 机器上的一组实测：
+
+```text
+fp32_gemm_cuda_core     avg_ms=0.0853  tflops=25.17
+fp16_gemm_cuda_core     avg_ms=0.0847  tflops=25.37
+fp16_gemm_tensor_core   avg_ms=0.0599  tflops=35.87
+
+bf16_gemm_cuda_core     avg_ms=0.0851  tflops=25.24
+bf16_gemm_tensor_core   avg_ms=0.0589  tflops=36.47
+
+int8_gemm_cuda_core     avg_ms=0.0848  tflops=25.32
+int8_gemm_tensor_core   avg_ms=0.0325  tflops=66.09
+
+int4_gemm_cuda_core     avg_ms=0.0923  tflops=23.28
+int4_gemm_tensor_core   avg_ms=0.0339  tflops=63.29
+```
+
+可以直接看出两件事：
+
+- `fp16/bf16/int8/int4` 的 `cuda_core` 版都还停留在同一个量级，因为本质上还是 shared-memory tiled + 标量 `FMA`
+- 一旦切到 Tensor Core，`fp16/bf16` 有明显提升，`int8/int4` 提升更大
+
+## 精度怎么看
+
+这里的误差要分两层看：
+
+- `max_abs_vs_quant_ref`
+  - 对比“同样量化后再做 CPU GEMM”的参考值
+  - 主要用来判断 kernel 本身是不是算对了
+- `max_abs_vs_fp32_ref`
+  - 对比原始 `fp32` 参考
+  - 这个差异里既包含 kernel 误差，也包含量化误差
+
+所以：
+
+- `int8/int4` 对 `fp32` 参考的误差明显更大，这是量化本身带来的，不是 kernel 算错
+- `int4` 的 `max_rel_vs_quant_ref` 会比较大，主要是因为分母接近 0 的项把相对误差放大了，但它的 `max_abs_vs_quant_ref` 仍然很小
+
+## NCU 怎么跑
+
+为了避免 benchmark 循环把同一个 kernel 反复 profile，这里支持：
+
+```bash
+GEMM_PROFILE_ONCE=1
+```
+
+例如：
+
+```bash
+GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
+  --target-processes all \
+  --set full \
+  --launch-skip 1 \
+  --launch-count 1 \
+  --kernel-name wmma_gemm_int8_kernel \
+  ./int8_gemm_tensor_core
+```
+
+更完整的结论看 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/ncu_notes.md)。
+
+如果你想先只抓住一组最典型的代码对照，可以先看
+[bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cuda_core_vs_tensor_core.md)。
+
+## 现在最值得看的对照
+
+如果你只想先看最关键的差别，建议按这个顺序：
+
+1. `fp16_gemm_cuda_core` vs `fp16_gemm_tensor_core`
+2. `bf16_gemm_cuda_core` vs `bf16_gemm_tensor_core`
+3. `int8_gemm_cuda_core` vs `int8_gemm_tensor_core`
+4. `int4_gemm_cuda_core` vs `int4_gemm_tensor_core`
+
+这样最容易建立一个清晰直觉：
+
+- `cuda_core` 版主要在优化传统 tiled GEMM
+- `tensor_core` 版主要在优化 warp-level matrix multiply 的 feeding path

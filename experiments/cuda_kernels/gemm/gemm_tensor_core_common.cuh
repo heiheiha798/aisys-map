@@ -28,6 +28,30 @@ namespace gemm_tc {
 using namespace nvcuda;
 namespace wmma_exp = nvcuda::wmma::experimental;
 
+#ifndef GEMM_WMMA_M
+#define GEMM_WMMA_M 16
+#endif
+#ifndef GEMM_WMMA_N
+#define GEMM_WMMA_N 16
+#endif
+#ifndef GEMM_WMMA_K
+#define GEMM_WMMA_K 16
+#endif
+#ifndef GEMM_WMMA_BLOCK_WARPS_M
+#define GEMM_WMMA_BLOCK_WARPS_M 8
+#endif
+#ifndef GEMM_WMMA_B_SKEW
+#define GEMM_WMMA_B_SKEW 8
+#endif
+
+constexpr int WMMA_M = GEMM_WMMA_M;
+constexpr int WMMA_N = GEMM_WMMA_N;
+constexpr int WMMA_K = GEMM_WMMA_K;
+constexpr int WMMA_BLOCK_WARPS_M = GEMM_WMMA_BLOCK_WARPS_M;
+constexpr int WMMA_BLOCK_WARPS = WMMA_BLOCK_WARPS_M;
+constexpr int WMMA_B_SKEW = GEMM_WMMA_B_SKEW;
+constexpr int WMMA_B_LD = WMMA_K + WMMA_B_SKEW;
+
 struct DiffStats {
   float max_abs = 0.0f;
   float max_rel = 0.0f;
@@ -159,39 +183,53 @@ template <typename AType, typename BType>
 __global__ void wmma_gemm_16x16x16_kernel(const AType* a, const BType* b, float* c,
                                           int m, int n, int k) {
   using FragA =
-      wmma::fragment<wmma::matrix_a, 16, 16, 16, AType, wmma::row_major>;
+      wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, AType, wmma::row_major>;
   using FragB =
-      wmma::fragment<wmma::matrix_b, 16, 16, 16, BType, wmma::col_major>;
-  using FragC = wmma::fragment<wmma::accumulator, 16, 16, 16, float>;
+      wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, BType, wmma::col_major>;
+  using FragC = wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float>;
 
   int lane_id = threadIdx.x % 32;
   (void)lane_id;
 
-  int warps_per_block_m = blockDim.y;
-  int warp_row = blockIdx.y * warps_per_block_m + threadIdx.y;
-  int warp_col = blockIdx.x;
+  int warp_slot = threadIdx.y;
+  int row = (blockIdx.y * WMMA_BLOCK_WARPS_M + warp_slot) * WMMA_M;
+  int col = blockIdx.x * WMMA_N;
+  const bool warp_active = (row < m && col < n);
 
-  int row = warp_row * 16;
-  int col = warp_col * 16;
-
-  if (row >= m || col >= n) {
-    return;
-  }
+  __shared__ BType b_tile[WMMA_N * WMMA_B_LD];
+  const int linear_tid = threadIdx.y * blockDim.x + threadIdx.x;
 
   FragC c_frag;
   wmma::fill_fragment(c_frag, 0.0f);
 
-  for (int k0 = 0; k0 < k; k0 += 16) {
+  for (int k0 = 0; k0 < k; k0 += WMMA_K) {
     FragA a_frag;
     FragB b_frag;
-    const AType* a_ptr = a + row * k + k0;
-    const BType* b_ptr = b + col * k + k0;
-    wmma::load_matrix_sync(a_frag, a_ptr, k);
-    wmma::load_matrix_sync(b_frag, b_ptr, k);
-    wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+    for (int idx = linear_tid; idx < WMMA_N * WMMA_K;
+         idx += blockDim.x * blockDim.y) {
+      int tile_col = idx / WMMA_K;
+      int tile_row = idx % WMMA_K;
+      int global_col = col + tile_col;
+      int global_row = k0 + tile_row;
+      if (global_col < n) {
+        b_tile[tile_col * WMMA_B_LD + tile_row] = b[global_col * k + global_row];
+      } else {
+        b_tile[tile_col * WMMA_B_LD + tile_row] = BType(0.0f);
+      }
+    }
+    __syncthreads();
+
+    if (warp_active) {
+      wmma::load_matrix_sync(a_frag, a + row * k + k0, k);
+      wmma::load_matrix_sync(b_frag, b_tile, WMMA_B_LD);
+      wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+    }
+    __syncthreads();
   }
 
-  wmma::store_matrix_sync(c + row * n + col, c_frag, n, wmma::mem_row_major);
+  if (warp_active) {
+    wmma::store_matrix_sync(c + row * n + col, c_frag, n, wmma::mem_row_major);
+  }
 }
 
 __global__ void wmma_gemm_int8_kernel(const int8_t* a, const int8_t* b_col_major,
@@ -316,8 +354,9 @@ inline std::vector<float> run_wmma_once(const std::vector<AType>& h_a,
                         h_b_col_major.size() * sizeof(BType),
                         cudaMemcpyHostToDevice));
 
-  dim3 block(32, 4);
-  dim3 grid((n + 15) / 16, (m + (block.y * 16) - 1) / (block.y * 16));
+  dim3 block(32, WMMA_BLOCK_WARPS);
+  dim3 grid((n + WMMA_N - 1) / WMMA_N,
+            (m + WMMA_BLOCK_WARPS_M * WMMA_M - 1) / (WMMA_BLOCK_WARPS_M * WMMA_M));
 
   wmma_gemm_16x16x16_kernel<<<grid, block>>>(d_a, d_b, d_c, m, n, k);
   CUDA_CHECK(cudaGetLastError());
@@ -352,8 +391,9 @@ inline float benchmark_wmma(const std::vector<AType>& h_a,
                         h_b_col_major.size() * sizeof(BType),
                         cudaMemcpyHostToDevice));
 
-  dim3 block(32, 4);
-  dim3 grid((n + 15) / 16, (m + (block.y * 16) - 1) / (block.y * 16));
+  dim3 block(32, WMMA_BLOCK_WARPS);
+  dim3 grid((n + WMMA_N - 1) / WMMA_N,
+            (m + WMMA_BLOCK_WARPS_M * WMMA_M - 1) / (WMMA_BLOCK_WARPS_M * WMMA_M));
 
   for (int i = 0; i < warmup_iters; ++i) {
     wmma_gemm_16x16x16_kernel<<<grid, block>>>(d_a, d_b, d_c, m, n, k);

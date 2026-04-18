@@ -10,11 +10,17 @@
   - `WMMA` / Tensor Core 路径
   - 真正用低精度 Tensor Core 做矩阵乘加
 
+另外现在补了一个第三方库基线：
+
+- `bf16_gemm_cublas`
+  - 直接调用 `cuBLAS`
+  - 用来回答“成熟库做到什么水平”
+  - 这也更接近 PyTorch eager 在 CUDA 上常见的 GEMM 底层路径
+
 ## 文件
 
 ### CUDA core 对照版
 
-- `fp32_gemm_cuda_core.cu`
 - `fp16_gemm_cuda_core.cu`
 - `bf16_gemm_cuda_core.cu`
 - `int8_gemm_cuda_core.cu`
@@ -28,6 +34,10 @@
 - `int8_gemm_tensor_core.cu`
 - `int4_gemm_tensor_core.cu`
 - `gemm_tensor_core_common.cuh`
+
+### 第三方库基线
+
+- `bf16_gemm_cublas.cu`
 
 ## 为什么分两条线
 
@@ -43,16 +53,42 @@
 - 低精度数据类型本身，不等于低精度 Tensor Core 计算
 - 真正决定计算路径的是 kernel 里到底走普通 `FMA`，还是走 `mma_sync`
 
+## 为什么补 `cuBLAS`
+
+这里单独补 `bf16_gemm_cublas`，不是为了把目录变成“库 benchmark 展示区”，而是因为它刚好回答了一个当前最需要面对的问题：
+
+- 我们自己的 Tensor Core kernel 已经能跑、也能 profile
+- 但它距离成熟实现到底差多少，不能只靠感觉判断
+
+把 `cuBLAS` 放进来之后，这个目录里的三组角色就更清楚了：
+
+- `*_cuda_core`
+  - 传统 tiled GEMM 对照组
+- `*_tensor_core`
+  - 教学型 WMMA / Tensor Core 实现
+- `bf16_gemm_cublas`
+  - 当前机器上更接近工业实现上限的第三方基线
+
+这里故意先选 `cuBLAS` 而不是直接选 `PyTorch`，因为对 CUDA GEMM 来说：
+
+- `PyTorch` 更多是上层调用者
+- 真正有代表性的底层强基线通常还是 `cuBLAS / cuBLASLt`
+
+所以这个基线的意义不是“多测一个库”，而是：
+
+- 明确我们现在这版 kernel 的位置
+- 防止把教学型优化误判成已经接近库级实现
+
 ## 当前全部可运行的 kernel
 
 ```bash
 make
 
-./fp32_gemm_cuda_core
 ./fp16_gemm_cuda_core
 ./fp16_gemm_tensor_core
 ./bf16_gemm_cuda_core
 ./bf16_gemm_tensor_core
+./bf16_gemm_cublas
 ./int8_gemm_cuda_core
 ./int8_gemm_tensor_core
 ./int4_gemm_cuda_core
@@ -64,12 +100,12 @@ make
 下面是当前这台 `RTX 4090 / sm_89` 机器上的一组实测：
 
 ```text
-fp32_gemm_cuda_core     avg_ms=0.0853  tflops=25.17
 fp16_gemm_cuda_core     avg_ms=0.0847  tflops=25.37
 fp16_gemm_tensor_core   avg_ms=0.0599  tflops=35.87
 
 bf16_gemm_cuda_core     avg_ms=0.0851  tflops=25.24
-bf16_gemm_tensor_core   avg_ms=0.0589  tflops=36.47
+bf16_gemm_tensor_core   avg_ms=0.0571  tflops=37.60
+bf16_gemm_cublas        avg_ms=0.0181  tflops=118.9
 
 int8_gemm_cuda_core     avg_ms=0.0848  tflops=25.32
 int8_gemm_tensor_core   avg_ms=0.0325  tflops=66.09
@@ -82,6 +118,16 @@ int4_gemm_tensor_core   avg_ms=0.0339  tflops=63.29
 
 - `fp16/bf16/int8/int4` 的 `cuda_core` 版都还停留在同一个量级，因为本质上还是 shared-memory tiled + 标量 `FMA`
 - 一旦切到 Tensor Core，`fp16/bf16` 有明显提升，`int8/int4` 提升更大
+
+再补一个现在最重要的现实判断：
+
+- 我们当前这个 `bf16_gemm_tensor_core` 已经比最初版本好，但它仍然只是教学型 WMMA kernel
+- 和 `cuBLAS` 这种成熟库相比，`bf16` 还有大约 `3.2x` 的吞吐差距
+
+这组差距也意味着：
+
+- 现在继续在朴素 WMMA kernel 上做小修小补，收益空间已经开始变窄
+- 如果后面要继续逼近 `cuBLAS`，方向应该转向更系统的 block tiling 和 multistage pipeline
 
 ## 精度怎么看
 
@@ -137,3 +183,4 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
 
 - `cuda_core` 版主要在优化传统 tiled GEMM
 - `tensor_core` 版主要在优化 warp-level matrix multiply 的 feeding path
+- `cuBLAS` 基线则代表成熟库如何把 Tensor Core 路径真正压满

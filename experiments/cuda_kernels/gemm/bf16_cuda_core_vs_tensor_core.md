@@ -71,28 +71,18 @@
 
 ```cpp
 int main() {
-  return gemm_tc::run_tensor_core_experiment<__nv_bfloat16>("bf16_tensor_core");
+  return gemm_tc::run_tensor_core_experiment("bf16_tensor_core");
 }
 ```
 
-现在两条线的组织不一样：
+目录里现在的分工很明确：
 
-- CUDA core 路线：
-  所有实现都已经直接收进
-  [bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
-- Tensor Core 路线：
-  入口仍然很薄，主要实现还在
-  [gemm_tensor_core_common.cuh](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/gemm_tensor_core_common.cuh)
+- `bf16_gemm_cuda_core.cu`
+  - 保留一版传统 tiled GEMM，用来对照 CUDA core 路线
+- `bf16_gemm_tensor_core.cu`
+  - 保留一版最小可读的 `bf16` WMMA kernel，用来对照 Tensor Core 路线
 
-所以现在读代码时应该这样看：
-
-- 想看 CUDA core 版，就直接从
-  [bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
-  往下读
-- 想看 Tensor Core 版，就从
-  [bf16_gemm_tensor_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_tensor_core.cu)
-  跳到
-  [gemm_tensor_core_common.cuh](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/gemm_tensor_core_common.cuh)
+这里不再展开其他数据类型，只围绕这两条 `bf16` 路线看“计算主路径”。
 
 ---
 
@@ -416,7 +406,7 @@ global(bf16) -> shared(float) -> registers(float) -> scalar FMA -> global(float)
 它更准确的定义是：
 
 - `bf16` 输入存储
-- `fp32` 累加
+- `float` 累加
 - CUDA core 标量乘加
 
 ### 3.3 计算核心
@@ -505,23 +495,25 @@ using FragC = wmma::fragment<wmma::accumulator, 16, 16, 16, float>;
 launch 方式是：
 
 ```cpp
-dim3 block(32, 4);
-dim3 grid((n + 15) / 16, (m + (block.y * 16) - 1) / (block.y * 16));
+dim3 block(32, WMMA_BLOCK_WARPS);
+dim3 grid((n + WMMA_N - 1) / WMMA_N,
+          (m + WMMA_BLOCK_WARPS_M * WMMA_M - 1) /
+              (WMMA_BLOCK_WARPS_M * WMMA_M));
 ```
 
 解释成结构就是：
 
 - `block.x = 32`，刚好一个 warp
-- `block.y = 4`
-- 所以一个 block 有 4 个 warp
+- `block.y = 8`
+- 所以一个 block 有 `8` 个 warp
 - 每个 warp 负责一个 `16 x 16` 输出 tile
 
 代码里对应的是：
 
 ```cpp
-int warps_per_block_m = blockDim.y;
-int warp_row = blockIdx.y * warps_per_block_m + threadIdx.y;
-int warp_col = blockIdx.x;
+int warp_slot = threadIdx.y;
+int row = (blockIdx.y * WMMA_BLOCK_WARPS_M + warp_slot) * WMMA_M;
+int col = blockIdx.x * WMMA_N;
 ```
 
 也就是：
@@ -562,11 +554,20 @@ wmma::fragment<wmma::matrix_b, ..., wmma::col_major>
 for (int k0 = 0; k0 < k; k0 += 16) {
   FragA a_frag;
   FragB b_frag;
-  const AType* a_ptr = a + row * k + k0;
-  const BType* b_ptr = b + col * k + k0;
-  wmma::load_matrix_sync(a_frag, a_ptr, k);
-  wmma::load_matrix_sync(b_frag, b_ptr, k);
-  wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+
+  for (int idx = linear_tid; idx < WMMA_N * WMMA_K;
+       idx += blockDim.x * blockDim.y) {
+    ...
+    b_tile[tile_col * WMMA_B_LD + tile_row] = ...;
+  }
+  __syncthreads();
+
+  if (warp_active) {
+    wmma::load_matrix_sync(a_frag, a + row * k + k0, k);
+    wmma::load_matrix_sync(b_frag, b_tile, WMMA_B_LD);
+    wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+  }
+  __syncthreads();
 }
 ```
 
@@ -584,33 +585,39 @@ for (int k0 = 0; k0 < k; k0 += 16) {
 
 这就是两条路线最本质的分界线。
 
-### 4.5 为什么这版没有显式 shared memory tile
+### 4.5 为什么这版仍然用了 shared memory
 
-当前这个示例里，你看不到 CUDA core 版那种：
-
-```cpp
-__shared__ float a_tile[...]
-__shared__ float b_tile[...]
-```
-
-也看不到每轮显式的 block 级同步。
-
-原因不是 Tensor Core 永远不需要 shared memory，而是：
-
-- **这版示例把重点放在 WMMA API 本身**
-- 所以直接用 global -> fragment -> MMA 的最简路径
-
-于是这版的主数据路径更像：
+当前这版 Tensor Core 示例并不是纯粹的：
 
 ```text
-global(bf16) -> fragment -> mma_sync -> global(float)
+global -> fragment -> mma_sync
 ```
 
-从代码表面看，你会很直观地感受到：
+它已经做了一个很小但很关键的 staging：
 
-- shared memory 变少了
-- 显式同步变少了
-- 计算粒度被抬到了 warp
+```cpp
+__shared__ __nv_bfloat16 b_tile[WMMA_N * WMMA_B_LD];
+```
+
+也就是：
+
+- `A` 仍然直接从 global memory 进 fragment
+- `B` 先由整个 block 搬进 shared memory
+- 再由每个 warp 从 `b_tile` 喂给 `wmma::load_matrix_sync`
+
+所以这版更准确的数据路径是：
+
+```text
+A: global(bf16) -> fragment
+B: global(bf16) -> shared(bf16) -> fragment
+C: accumulator(float) -> global(float)
+```
+
+这正好对应当前代码的设计重点：
+
+- 保持 WMMA API 结构足够直接
+- 只给 `B` 加最小必要的 shared-memory staging
+- 让 block 内多个 warp 复用同一个 `B` tile
 
 ---
 
@@ -702,8 +709,8 @@ Tensor Core 版：
 当前这台机器上的结果是：
 
 ```text
-bf16_gemm_cuda_core   avg_ms=0.0849  tflops=25.29
-bf16_gemm_tensor_core avg_ms=0.0571  tflops=37.63
+bf16_gemm_cuda_core   avg_ms=0.0844  tflops=25.43
+bf16_gemm_tensor_core avg_ms=0.0572  tflops=37.56
 ```
 
 所以 first-order 结论很简单：
@@ -727,15 +734,15 @@ bf16_gemm_tensor_core avg_ms=0.0571  tflops=37.63
 
 `ncu` 里大致是：
 
-- `Memory Throughput ≈ 89%`
-- `Compute (SM) Throughput ≈ 22%`
-- `L1/TEX Cache Throughput ≈ 94%`
+- `Memory Throughput ≈ 72.50%`
+- `Compute (SM) Throughput ≈ 31.04%`
+- `L1/TEX Cache Throughput ≈ 63.25%`
 
 这里的 `L1/TEX` 按 [../../../notes/gpu_components.md](../../../notes/gpu_components.md) 里的定义理解。  
 在当前这个 `bf16_gemm_tensor_core` 例子里，它主要是在提示：
 
 - Tensor Core 不是没在工作
-- 更大的问题是数据 feeding path，尤其是靠近 `SM` 的 load/cache 路径已经很忙了
+- 更大的问题仍然是数据 feeding path，尤其是靠近 `SM` 的 load/cache 路径压力还比较高
 
 这说明：
 
@@ -775,9 +782,9 @@ bf16_gemm_tensor_core avg_ms=0.0571  tflops=37.63
 ### Tensor Core 版只看这 5 个点
 
 1. `wmma::fragment`
-2. `block(32, 4)` 对应 4 个 warp
+2. `block(32, 8)` 对应 8 个 warp
 3. `transpose_to_col_major_storage`
-4. `load_matrix_sync`
+4. `b_tile` 这块 shared memory staging
 5. `mma_sync`
 
 如果这 9 个点你都能在代码里重新定位出来，这个 `bf16` 对照就已经看懂了。
@@ -789,16 +796,16 @@ bf16_gemm_tensor_core avg_ms=0.0571  tflops=37.63
 1. `bf16` 只是数据格式，不是计算路径。
 2. `bf16_gemm_cuda_core` 的本质是：
    - `bf16` 输入存储
-   - `fp32` shared memory / register accumulation
+   - `float` shared memory / register accumulation
    - CUDA core 标量 `FMA`
 3. `bf16_gemm_tensor_core` 的本质是：
    - `bf16` 输入
-   - `fp32` 累加
+   - `float` 累加
    - warp-level `WMMA`
    - Tensor Core `mma_sync`
 4. 这两个 kernel 的真正区别，不是“都叫 bf16”，而是：
    - 一个在优化传统 tiled GEMM
-   - 一个在优化 Tensor Core feeding path
+   - 一个在优化 Tensor Core 路线下的 feeding path
 5. 如果后面要继续优化 `bf16_gemm_tensor_core`，重点已经不是“再多写几层乘加循环”，而是：
    - 更好的 staging
    - 更好的 global load coalescing

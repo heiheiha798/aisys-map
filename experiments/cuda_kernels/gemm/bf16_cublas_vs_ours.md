@@ -30,8 +30,8 @@
 当前这台 `RTX 4090 / sm_89` 机器上的一组结果是：
 
 ```text
-bf16_gemm_tensor_core   avg_ms≈0.0571   tflops≈37.6
-bf16_gemm_cublas        avg_ms≈0.0181   tflops≈118.7
+bf16_gemm_tensor_core   avg_ms≈0.0572   tflops≈37.6
+bf16_gemm_cublas        avg_ms≈0.0181   tflops≈118.9
 ```
 
 也就是说：
@@ -106,9 +106,9 @@ ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn
 这次 `ncu` 的一个很重要信号是：
 
 - 我们的 `bf16_gemm_tensor_core`
-  - `Achieved Occupancy ≈ 64.83%`
+  - `Achieved Occupancy ≈ 64.43%`
 - `cuBLAS`
-  - `Achieved Occupancy ≈ 8.29%`
+  - `Achieved Occupancy ≈ 8.28%`
 
 但 `cuBLAS` 仍然快很多。
 
@@ -351,7 +351,7 @@ cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
 也就是：
 
 - `bf16` 输入
-- `fp32` accumulate / output
+- `float` accumulate / output
 
 这和我们自己 Tensor Core kernel 的目标是对齐的。
 
@@ -440,6 +440,14 @@ ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn
   - 更大的分层 tile
   - 多阶段 pipeline
   - 更成熟的 shared-memory / register / Tensor Core feeding 协同
+
+整个对照也只围绕这一条 `bf16` 主线展开：
+
+- `bf16_gemm_cuda_core`
+- `bf16_gemm_tensor_core`
+- `bf16_gemm_cublas`
+
+这里不再展开其他数据类型，避免把重点从 `bf16` 路线切散。
 
 ---
 

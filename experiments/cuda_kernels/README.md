@@ -6,7 +6,7 @@
 具体实验按类型拆到子目录里，例如：
 
 - `elementwise/`
-- `reduction/`
+- `softmax/`
 - `gemm/`
 
 ## 编译约定
@@ -58,7 +58,7 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
 
 - `elementwise/`
   - 最基础的逐元素 kernel
-- `reduction/`
-  - sum / max / block reduction / warp reduction
+- `softmax/`
+  - 以 softmax 为入口理解 reduction、shared memory、同步和 block 内协作
 - `gemm/`
   - matrix multiply / tiling / shared memory reuse

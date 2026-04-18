@@ -3,7 +3,7 @@ build/
 *.o
 *.out
 elementwise/elementwise_add
-reduction/row_softmax
+softmax/row_softmax
 
 # Nsight outputs
 *.ncu-rep

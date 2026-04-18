@@ -7,6 +7,7 @@
 
 - `elementwise/`
 - `softmax/`
+- `online_softmax/`
 - `gemm/`
 
 ## 编译约定
@@ -60,5 +61,7 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
   - 最基础的逐元素 kernel
 - `softmax/`
   - 以 softmax 为入口理解 reduction、shared memory、同步和 block 内协作
+- `online_softmax/`
+  - 以 `(m, l)` 状态合并为入口理解 online softmax、warp-level reduction 和通往 FlashAttention 的桥
 - `gemm/`
   - matrix multiply / tiling / shared memory reuse

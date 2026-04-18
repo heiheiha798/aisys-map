@@ -4,6 +4,7 @@ build/
 *.out
 elementwise/elementwise_add
 softmax/row_softmax
+online_softmax/row_softmax_online
 
 # Nsight outputs
 *.ncu-rep

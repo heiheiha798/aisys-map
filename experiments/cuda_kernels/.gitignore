@@ -5,6 +5,8 @@ build/
 elementwise/elementwise_add
 softmax/row_softmax
 online_softmax/row_softmax_online
+layernorm/row_layernorm
+layernorm/row_rmsnorm
 gemm/bf16_gemm_cuda_core
 gemm/bf16_gemm_tensor_core
 gemm/bf16_gemm_cublas

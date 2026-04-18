@@ -9,6 +9,7 @@
 - `softmax/`
 - `online_softmax/`
 - `gemm/`
+- `layernorm/`
 
 ## 编译约定
 
@@ -66,3 +67,6 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
 - `gemm/`
   - matrix multiply / tiling / shared memory reuse
   - 分开对比 `CUDA core` tiled GEMM 和 `Tensor Core / WMMA` GEMM
+- `layernorm/`
+  - `layernorm / rmsnorm`
+  - 以 row-wise normalization 为入口理解 reduction、方差/均方根统计和 memory-bound kernel

@@ -21,15 +21,10 @@
 
 ### CUDA core 对照版
 
-- `fp16_gemm_cuda_core.cu`
 - `bf16_gemm_cuda_core.cu`
-- `int8_gemm_cuda_core.cu`
-- `int4_gemm_cuda_core.cu`
-- `gemm_cuda_core_common.cuh`
 
 ### Tensor Core 版
 
-- `fp16_gemm_tensor_core.cu`
 - `bf16_gemm_tensor_core.cu`
 - `int8_gemm_tensor_core.cu`
 - `int4_gemm_tensor_core.cu`
@@ -84,14 +79,10 @@
 ```bash
 make
 
-./fp16_gemm_cuda_core
-./fp16_gemm_tensor_core
 ./bf16_gemm_cuda_core
 ./bf16_gemm_tensor_core
 ./bf16_gemm_cublas
-./int8_gemm_cuda_core
 ./int8_gemm_tensor_core
-./int4_gemm_cuda_core
 ./int4_gemm_tensor_core
 ```
 
@@ -100,24 +91,19 @@ make
 下面是当前这台 `RTX 4090 / sm_89` 机器上的一组实测：
 
 ```text
-fp16_gemm_cuda_core     avg_ms=0.0847  tflops=25.37
-fp16_gemm_tensor_core   avg_ms=0.0599  tflops=35.87
+bf16_gemm_cuda_core     avg_ms=0.0849  tflops=25.29
+bf16_gemm_tensor_core   avg_ms=0.0571  tflops=37.63
+bf16_gemm_cublas        avg_ms=0.0181  tflops=118.71
 
-bf16_gemm_cuda_core     avg_ms=0.0851  tflops=25.24
-bf16_gemm_tensor_core   avg_ms=0.0571  tflops=37.60
-bf16_gemm_cublas        avg_ms=0.0181  tflops=118.9
+int8_gemm_tensor_core   avg_ms=0.0325  tflops=66.02
 
-int8_gemm_cuda_core     avg_ms=0.0848  tflops=25.32
-int8_gemm_tensor_core   avg_ms=0.0325  tflops=66.09
-
-int4_gemm_cuda_core     avg_ms=0.0923  tflops=23.28
-int4_gemm_tensor_core   avg_ms=0.0339  tflops=63.29
+int4_gemm_tensor_core   avg_ms=0.0336  tflops=63.87
 ```
 
 可以直接看出两件事：
 
-- `fp16/bf16/int8/int4` 的 `cuda_core` 版都还停留在同一个量级，因为本质上还是 shared-memory tiled + 标量 `FMA`
-- 一旦切到 Tensor Core，`fp16/bf16` 有明显提升，`int8/int4` 提升更大
+- `bf16_gemm_cuda_core` 仍然代表传统 shared-memory tiled + 标量 `FMA` 路线
+- 一旦切到 Tensor Core，`bf16` 有明显提升，`int8/int4` 提升更大
 
 再补一个现在最重要的现实判断：
 
@@ -170,17 +156,25 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
 如果你想先只抓住一组最典型的代码对照，可以先看
 [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cuda_core_vs_tensor_core.md)。
 
+如果你想进一步看：
+
+- 为什么 `cuBLAS` 会比我们当前的 WMMA kernel 快这么多
+- 以及 [bf16_gemm_cublas.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cublas.cu) 这个包装程序到底做了什么
+
+可以继续看
+[bf16_cublas_vs_ours.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cublas_vs_ours.md)。
+
 ## 现在最值得看的对照
 
 如果你只想先看最关键的差别，建议按这个顺序：
 
-1. `fp16_gemm_cuda_core` vs `fp16_gemm_tensor_core`
-2. `bf16_gemm_cuda_core` vs `bf16_gemm_tensor_core`
-3. `int8_gemm_cuda_core` vs `int8_gemm_tensor_core`
-4. `int4_gemm_cuda_core` vs `int4_gemm_tensor_core`
+1. `bf16_gemm_cuda_core` vs `bf16_gemm_tensor_core`
+2. `bf16_gemm_tensor_core` vs `bf16_gemm_cublas`
+3. `int8_gemm_tensor_core`
+4. `int4_gemm_tensor_core`
 
 这样最容易建立一个清晰直觉：
 
-- `cuda_core` 版主要在优化传统 tiled GEMM
+- `bf16_gemm_cuda_core` 代表传统 tiled GEMM
 - `tensor_core` 版主要在优化 warp-level matrix multiply 的 feeding path
 - `cuBLAS` 基线则代表成熟库如何把 Tensor Core 路径真正压满

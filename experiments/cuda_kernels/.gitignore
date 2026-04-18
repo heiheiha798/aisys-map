@@ -6,12 +6,9 @@ elementwise/elementwise_add
 softmax/row_softmax
 online_softmax/row_softmax_online
 gemm/fp32_gemm_cuda_core
-gemm/fp16_gemm_cuda_core
 gemm/bf16_gemm_cuda_core
-gemm/int8_gemm_cuda_core
-gemm/int4_gemm_cuda_core
-gemm/fp16_gemm_tensor_core
 gemm/bf16_gemm_tensor_core
+gemm/bf16_gemm_cublas
 gemm/int8_gemm_tensor_core
 gemm/int4_gemm_tensor_core
 

@@ -63,13 +63,9 @@
 
 ---
 
-## 2. 两个入口文件其实都只是 wrapper
+## 2. 两个入口文件怎么分工
 
 [bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
-
-```cpp
-int main() { return gemm::run_storage_experiment<__nv_bfloat16>("bf16"); }
-```
 
 [bf16_gemm_tensor_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_tensor_core.cu)
 
@@ -79,13 +75,23 @@ int main() {
 }
 ```
 
-所以这两个 `.cu` 文件本身没什么可读的。
-
-真正应该看的分别是：
+现在两条线的组织不一样：
 
 - CUDA core 路线：
-  [gemm_cuda_core_common.cuh](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/gemm_cuda_core_common.cuh)
+  所有实现都已经直接收进
+  [bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
 - Tensor Core 路线：
+  入口仍然很薄，主要实现还在
+  [gemm_tensor_core_common.cuh](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/gemm_tensor_core_common.cuh)
+
+所以现在读代码时应该这样看：
+
+- 想看 CUDA core 版，就直接从
+  [bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
+  往下读
+- 想看 Tensor Core 版，就从
+  [bf16_gemm_tensor_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_tensor_core.cu)
+  跳到
   [gemm_tensor_core_common.cuh](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/gemm_tensor_core_common.cuh)
 
 ---
@@ -696,8 +702,8 @@ Tensor Core 版：
 当前这台机器上的结果是：
 
 ```text
-bf16_gemm_cuda_core   avg_ms=0.0851  tflops=25.24
-bf16_gemm_tensor_core avg_ms=0.0589  tflops=36.47
+bf16_gemm_cuda_core   avg_ms=0.0849  tflops=25.29
+bf16_gemm_tensor_core avg_ms=0.0571  tflops=37.63
 ```
 
 所以 first-order 结论很简单：

@@ -3,7 +3,7 @@
 这份笔记记录当前 `gemm/` 目录里自写 kernel 加上一个 `cuBLAS` 基线的 profile 结果，重点回答三件事：
 
 - `CUDA core` tiled GEMM 和 `Tensor Core / WMMA` GEMM 的画像到底差在哪
-- `fp16 / bf16 / int8 / int4` 换精度之后，瓶颈有没有真的变
+- `bf16 / int8 / int4` 换精度之后，瓶颈有没有真的变
 - 我们当前自写的 `bf16` Tensor Core kernel，和成熟库还有多大差距
 
 ## Profiling 命令
@@ -33,15 +33,11 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
 
 | binary | avg_ms | tflops |
 | --- | ---: | ---: |
-| `fp16_gemm_cuda_core` | `0.0847` | `25.37` |
-| `fp16_gemm_tensor_core` | `0.0599` | `35.87` |
-| `bf16_gemm_cuda_core` | `0.0851` | `25.24` |
-| `bf16_gemm_tensor_core` | `0.0571` | `37.60` |
-| `bf16_gemm_cublas` | `0.0181` | `118.93` |
-| `int8_gemm_cuda_core` | `0.0848` | `25.32` |
-| `int8_gemm_tensor_core` | `0.0325` | `66.09` |
-| `int4_gemm_cuda_core` | `0.0923` | `23.28` |
-| `int4_gemm_tensor_core` | `0.0339` | `63.29` |
+| `bf16_gemm_cuda_core` | `0.0849` | `25.29` |
+| `bf16_gemm_tensor_core` | `0.0571` | `37.63` |
+| `bf16_gemm_cublas` | `0.0181` | `118.71` |
+| `int8_gemm_tensor_core` | `0.0325` | `66.02` |
+| `int4_gemm_tensor_core` | `0.0336` | `63.87` |
 
 最直接的结论：
 
@@ -55,15 +51,11 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
 
 | binary | kernel | dur(us) | mem % | compute % | l1/tex % | l2 % | occ % |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `fp16_gemm_cuda_core` | `tiled_gemm_kernel` | `108.86` | `50.52` | `51.91` | `51.44` | `18.85` | `31.97` |
-| `bf16_gemm_cuda_core` | `tiled_gemm_kernel` | `108.77` | `50.43` | `51.81` | `51.26` | `18.91` | `33.02` |
-| `int8_gemm_cuda_core` | `tiled_gemm_kernel` | `105.47` | `52.07` | `53.39` | `52.95` | `12.67` | `33.08` |
-| `int4_gemm_cuda_core` | `tiled_gemm_int4_kernel` | `103.71` | `53.13` | `62.59` | `54.38` | `6.20` | `33.07` |
-| `fp16_gemm_tensor_core` | `wmma_gemm_16x16x16_kernel` | `67.71` | `89.41` | `22.44` | `94.51` | `69.07` | `56.87` |
-| `bf16_gemm_tensor_core` | `wmma_gemm_16x16x16_kernel` | `67.20` | `88.99` | `22.33` | `94.33` | `73.90` | `56.03` |
-| `bf16_gemm_cublas` | `ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn` | `20.70` | `60.70` | `37.03` | `30.33` | `60.70` | `8.32` |
-| `int8_gemm_tensor_core` | `wmma_gemm_int8_kernel` | `35.84` | `85.77` | `22.86` | `91.87` | `71.75` | `56.69` |
-| `int4_gemm_tensor_core` | `wmma_gemm_int4_kernel` | `36.61` | `84.77` | `28.49` | `93.51` | `63.59` | `90.30` |
+| `bf16_gemm_cuda_core` | `tiled_gemm_kernel` | `107.30` | `50.80` | `52.19` | `51.80` | `19.12` | `33.96` |
+| `bf16_gemm_tensor_core` | `wmma_gemm_16x16x16_kernel` | `67.55` | `72.50` | `30.79` | `63.80` | `72.50` | `64.83` |
+| `bf16_gemm_cublas` | `ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn` | `20.83` | `60.45` | `36.87` | `30.29` | `60.45` | `8.29` |
+| `int8_gemm_tensor_core` | `wmma_gemm_int8_kernel` | `35.84` | `85.90` | `22.89` | `91.47` | `71.70` | `56.76` |
+| `int4_gemm_tensor_core` | `wmma_gemm_int4_kernel` | `37.82` | `82.71` | `27.80` | `93.97` | `62.36` | `90.70` |
 
 ## BF16 Tensor Core: commit / version 对比
 
@@ -102,7 +94,7 @@ bf16_gemm_tensor_core   avg_ms=0.0589  tflops=36.47
 - 不只是“必须搬数据”
 - 而是有明显的 global-load 组织浪费
 
-### 当前工作树版本：shared-memory staged `B` tile
+### 中间尝试：shared-memory staged `B` tile
 
 这一步只做了一个最简单的优化：
 
@@ -115,7 +107,7 @@ bf16_gemm_tensor_core   avg_ms=0.0589  tflops=36.47
 - 同一个 block 的 4 个 warp 在每个 `k0` 上共用同一个 `B` tile
 - 这部分原来被重复从 global memory 读了 4 次
 
-当前工作树 benchmark：
+中间版本 benchmark：
 
 ```text
 bf16_gemm_tensor_core   avg_ms≈0.06216  tflops≈34.55
@@ -180,7 +172,7 @@ bf16_gemm_tensor_core   avg_ms≈0.06216  tflops≈34.55
    - 怎样减少 shared bank conflict
    - 是否要进一步调整 block / warp tile 组织
 
-### 当前工作树版本：8 warps 复用同一个 `B` tile
+### 当前版本：8 warps 复用同一个 `B` tile
 
 这一步保留了“只 staging `B`”这个方向，但把结构重新收紧成更简单的版本：
 
@@ -212,17 +204,17 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 | version | dur(us) | mem % | compute % | l1/tex % | occ % |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `working tree v2` | `67.78` | `71.86` | `30.43` | `63.59` | `64.73` |
+| `working tree v2` | `67.55` | `72.50` | `30.79` | `63.80` | `64.83` |
 
 相对基线 `e70208b`：
 
-- `Duration`: `67.20 -> 67.78 us`
+- `Duration`: `67.20 -> 67.55 us`
   - `ncu` 单次 profile 下几乎持平
   - 但 benchmark 循环里整体吞吐更高
-- `Memory Throughput`: `88.99% -> 71.86%`
-- `L1/TEX Cache Throughput`: `94.33% -> 63.59%`
-- `Compute (SM) Throughput`: `22.33% -> 30.43%`
-- `Achieved Occupancy`: `56.03% -> 64.73%`
+- `Memory Throughput`: `88.99% -> 72.50%`
+- `L1/TEX Cache Throughput`: `94.33% -> 63.80%`
+- `Compute (SM) Throughput`: `22.33% -> 30.79%`
+- `Achieved Occupancy`: `56.03% -> 64.83%`
 - `L1TEX scoreboard dependency`: `84.9 cycles -> 18.6 cycles`
 
 这说明这次版本的主要收益很明确：
@@ -277,8 +269,8 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 | binary | avg_ms | tflops |
 | --- | ---: | ---: |
-| `bf16_gemm_tensor_core` | `0.0571` | `37.60` |
-| `bf16_gemm_cublas` | `0.0181` | `118.93` |
+| `bf16_gemm_tensor_core` | `0.0571` | `37.63` |
+| `bf16_gemm_cublas` | `0.0181` | `118.71` |
 
 也就是说：
 
@@ -289,8 +281,8 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 | binary | kernel | dur(us) | mem % | compute % | l1/tex % | l2 % | occ % |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `bf16_gemm_tensor_core` | `wmma_gemm_16x16x16_kernel` | `67.78` | `71.86` | `30.43` | `63.59` | `71.86` | `64.73` |
-| `bf16_gemm_cublas` | `ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn` | `20.70` | `60.70` | `37.03` | `30.33` | `60.70` | `8.32` |
+| `bf16_gemm_tensor_core` | `wmma_gemm_16x16x16_kernel` | `67.55` | `72.50` | `30.79` | `63.80` | `72.50` | `64.83` |
+| `bf16_gemm_cublas` | `ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn` | `20.83` | `60.45` | `36.87` | `30.29` | `60.45` | `8.29` |
 
 从画像上看，最重要的不是某一个百分比谁更高，而是整个结构已经完全不同了。
 
@@ -324,10 +316,10 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 从 `ncu` 指标也能看出来：
 
-- `Duration` 直接压到 `20.70 us`
-- `L1/TEX` 只剩 `30.33%`
+- `Duration` 直接压到 `20.83 us`
+- `L1/TEX` 只剩 `30.29%`
 - `Tensor` pipeline 已经成为主利用管线
-- 即使 occupancy 只有 `8.32%`，它仍然远快于我们
+- 即使 occupancy 只有 `8.29%`，它仍然远快于我们
 
 这一点很关键：
 
@@ -348,19 +340,19 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
    - load/store 组织
    - 对 shared memory / register / Tensor Core feeding 的整体协同
 4. 所以后面如果还想继续逼近库级性能，方向应该是：
-   - 从“教学型 WMMA kernel”走向“CUTLASS 风格的分层 tiled GEMM”
+   - 从“教学型 WMMA kernel”走向更分层的 tiled GEMM 和更深的 pipeline
    - 而不是继续只在当前这版单阶段循环上做小修小补
 
 ## 先看两大类的本质区别
 
 ### 1. `CUDA core` 版是典型的 tiled FMA GEMM
 
-`fp16/bf16/int8/int4` 的 `cuda_core` 版本都很像：
+当前保留的 `bf16_gemm_cuda_core`，足够代表传统 `cuda_core` tiled GEMM 的画像：
 
-- `Memory Throughput` 大约 `49-53%`
-- `Compute (SM) Throughput` 大约 `49-63%`
-- occupancy 大约 `32-33%`
-- NCU 直接把它们描述成更偏 `balanced` 或 `compute + memory` 都重要
+- `Memory Throughput` 大约 `50%`
+- `Compute (SM) Throughput` 大约 `52%`
+- occupancy 大约 `33%`
+- NCU 会把它描述成更偏 `balanced`
 
 这和代码结构是完全一致的：
 
@@ -370,18 +362,17 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 也就是说：
 
-- 这些 kernel 虽然输入精度不同
-- 但计算主路径仍然是普通 CUDA core 的 `FMA`
-- 所以吞吐大体还停留在同一档
+- 这个对照组的计算主路径仍然是普通 CUDA core 的 `FMA`
+- 可以直接用来和真正的 Tensor Core 路径做本质对照
 
 ### 2. `Tensor Core` 版已经明显变成 feeding-path 问题
 
-`fp16/bf16/int8/int4` 的 `tensor_core` 版本整体呈现另一种画像：
+`bf16/int8/int4` 的 `tensor_core` 版本整体呈现另一种画像：
 
 - `Memory Throughput` 已经到 `84-89%`
 - `L1/TEX Cache Throughput` 已经到 `91-95%`
 - `Compute (SM) Throughput` 反而只有 `22-28%`
-- occupancy 明显更高，尤其 `int4` 到了 `90.30%`
+- occupancy 明显更高，尤其 `int4` 到了 `90.70%`
 
 这里的 `L1/TEX` 口径按 [../../../notes/gpu_components.md](../../../notes/gpu_components.md) 里的定义理解。
 
@@ -393,9 +384,7 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 ## 各组怎么看
 
-### `fp16/bf16` CUDA core
-
-这三组 profile 很接近：
+### `bf16` CUDA core
 
 - duration 都在 `108-112 us`
 - `FMA` 是最高利用的 pipeline
@@ -407,9 +396,9 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 - 这是比较标准的共享内存 tiled GEMM
 - 受寄存器、occupancy、store pattern 一起约束
 
-### `fp16/bf16` Tensor Core
+### `bf16` Tensor Core
 
-这两组几乎是同一张图：
+这组画像很典型：
 
 - duration 大约 `67 us`
 - `Memory Throughput` 约 `89%`
@@ -423,19 +412,11 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 - 现在主要不是 Tensor Core 算得不够快
 - 而是 `load_matrix_sync` 前后的 global-memory feeding path 还不够理想
 
-### `int8` CUDA core vs Tensor Core
-
-`int8_gemm_cuda_core`：
-
-- `duration = 105.47 us`
-- `mem % = 52.07`
-- `compute % = 53.39`
-
-`int8_gemm_tensor_core`：
+### `int8` Tensor Core
 
 - `duration = 35.84 us`
-- `mem % = 85.77`
-- `compute % = 22.86`
+- `mem % = 85.90`
+- `compute % = 22.89`
 
 这组最能说明：
 
@@ -449,21 +430,12 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 
 所以这版虽然已经很快，但还不是最终形态。
 
-### `int4` CUDA core vs Tensor Core
+### `int4` Tensor Core
 
-`int4_gemm_cuda_core`：
-
-- `duration = 103.71 us`
-- `mem % = 53.13`
-- `compute % = 62.59`
-- 仍然是比较均衡的 ALU + memory 内核
-
-`int4_gemm_tensor_core`：
-
-- `duration = 36.61 us`
-- `mem % = 84.77`
-- `compute % = 28.49`
-- occupancy 达到 `90.30%`
+- `duration = 37.82 us`
+- `mem % = 82.71`
+- `compute % = 27.80`
+- occupancy 达到 `90.70%`
 - top stall 仍然是 `L1TEX scoreboard dependency`
 
 这说明：
@@ -475,7 +447,7 @@ bf16_gemm_tensor_core   avg_ms≈0.0571 ~ 0.0573  tflops≈37.45 ~ 37.61
 ## 这个实验最该记住的结论
 
 1. 低精度数据类型本身，不等于 Tensor Core GEMM。
-2. 如果 kernel 还是普通标量 `FMA`，即使读的是 `fp16/bf16/int8/int4`，整体吞吐仍然可能停在同一量级。
+2. `bf16_gemm_cuda_core` 这个对照组已经足够说明：如果 kernel 还是普通标量 `FMA`，它和 Tensor Core 路线的瓶颈画像会很不一样。
 3. 一旦切到 `WMMA` / Tensor Core，吞吐会明显上一个台阶。
 4. 但 Tensor Core 版当前最主要的限制不是乘加单元，而是 global load、L1TEX、layout、shared-memory feeding path。
 5. `int8/int4` Tensor Core 已经跑通，但如果继续优化，最值得做的不是改数学公式，而是改：

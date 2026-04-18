@@ -1,0 +1,12 @@
+# Build artifacts
+build/
+*.o
+*.out
+elementwise/elementwise_add
+reduction/row_softmax
+
+# Nsight outputs
+*.ncu-rep
+*.nsys-rep
+*.qdrep
+*.sqlite

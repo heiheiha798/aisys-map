@@ -10,6 +10,7 @@
 - `online_softmax/`
 - `gemm/`
 - `layernorm/`
+- `embedding/`
 
 ## 编译约定
 
@@ -70,3 +71,6 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
 - `layernorm/`
   - `layernorm / rmsnorm`
   - 以 row-wise normalization 为入口理解 reduction、方差/均方根统计和 memory-bound kernel
+- `embedding/`
+  - `embedding lookup / gather`
+  - 以不规则访存为入口理解 gather、cache、coalescing 和 memory-bound kernel

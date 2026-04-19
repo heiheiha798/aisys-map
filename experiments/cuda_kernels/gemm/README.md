@@ -22,7 +22,7 @@
 - `bf16_cublas_vs_ours.md`
   - 为什么 `cuBLAS` 更快
 - `ncu_notes.md`
-  - 三条 `bf16` 路线的 profile 记录
+  - profile 结果
 
 ## 编译和运行
 

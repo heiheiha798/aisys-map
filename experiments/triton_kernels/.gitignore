@@ -1,0 +1,11 @@
+.triton/
+.triton_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.ptx
+*.cubin
+*.llir
+*.ttir
+*.ttgir
+*.so

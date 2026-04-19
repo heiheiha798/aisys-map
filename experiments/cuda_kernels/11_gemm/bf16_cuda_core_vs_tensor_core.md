@@ -65,9 +65,9 @@
 
 ## 2. 两个入口文件怎么分工
 
-[bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cuda_core.cu)
+[bf16_gemm_cuda_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_gemm_cuda_core.cu)
 
-[bf16_gemm_tensor_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_tensor_core.cu)
+[bf16_gemm_tensor_core.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_gemm_tensor_core.cu)
 
 ```cpp
 int main() {

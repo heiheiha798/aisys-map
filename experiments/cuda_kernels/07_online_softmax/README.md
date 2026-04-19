@@ -723,8 +723,8 @@ exp(x_i - row_max)
 
 最好的使用顺序是：
 
-1. 先把基础版 `softmax/README.md` 看懂
-2. 再看这份 `online_softmax/README.md`
+1. 先把基础版 `04_softmax/README.md` 看懂
+2. 再看这份 `07_online_softmax/README.md`
 3. 边看边对照 `merge_states` 和 `warp_reduce_state`
 4. 最后再回到 `notes/attention_flash_bridge.md`，把它接到 `FlashAttention`
 

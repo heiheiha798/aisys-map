@@ -50,8 +50,8 @@ bf16_cublas      avg_ms=0.0181  tflops=118.93
 - `bf16_gemm_tensor_core` 已经明显更快，说明计算主路径切到了 Tensor Core
 - `cuBLAS` 依然快很多，说明教学型 WMMA kernel 和成熟库还有明显差距
 
-代码说明主要看 [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cuda_core_vs_tensor_core.md)，
-库级对比主要看 [bf16_cublas_vs_ours.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cublas_vs_ours.md)。
+代码说明主要看 [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_cuda_core_vs_tensor_core.md)，
+库级对比主要看 [bf16_cublas_vs_ours.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_cublas_vs_ours.md)。
 
 ## NCU
 
@@ -67,4 +67,4 @@ GEMM_PROFILE_ONCE=1 /usr/local/cuda-12.4/bin/ncu \
   ./bf16_gemm_tensor_core
 ```
 
-更完整的结果见 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/ncu_notes.md)。
+更完整的结果见 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/ncu_notes.md)。

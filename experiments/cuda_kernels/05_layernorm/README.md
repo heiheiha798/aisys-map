@@ -168,7 +168,7 @@ y_i = x_i / rms
 - 先做 block 内 reduction
 - 再回写归一化结果
 
-所以它们的气质和 `softmax/` 很接近：
+所以它们的气质和 `04_softmax/` 很接近：
 
 - 都是典型的 row-wise reduction kernel
 - 都是 memory-bound 倾向明显的算子
@@ -187,7 +187,7 @@ make
 ./row_rmsnorm
 ```
 
-更完整的 profile 结果见 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/layernorm/ncu_notes.md)。
+更完整的 profile 结果见 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/05_layernorm/ncu_notes.md)。
 
 ## 现在最值得记住的区别
 

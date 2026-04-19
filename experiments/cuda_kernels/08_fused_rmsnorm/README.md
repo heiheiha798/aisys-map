@@ -8,7 +8,7 @@
 
 - 会写 Python
 - 大概知道 residual connection 和 norm 是什么
-- 已经看过 `layernorm/README.md` 里 row-wise reduction 的基本味道
+- 已经看过 `05_layernorm/README.md` 里 row-wise reduction 的基本味道
 - 但还没有把 “residual add + rmsnorm” 放进同一个 CUDA kernel 里看过
 
 ---

@@ -8,7 +8,7 @@
 
 - 会写 Python
 - 知道 attention 和 softmax 的基本公式
-- 已经大概看过 `softmax/README.md`
+- 已经大概看过 `04_softmax/README.md`
 - 但还没有认真把 attention kernel 从代码角度拆开
 
 也就是说，这里不会默认你已经完全熟悉：
@@ -518,11 +518,11 @@ then q3 attends to all 4 rows
 再加权求和 value
 ```
 
-如果你把它和 `kv_cache/README.md` 连起来看，逻辑就更清楚了：
+如果你把它和 `10_kv_cache/README.md` 连起来看，逻辑就更清楚了：
 
-- `attention/`
+- `09_attention/`
   - 负责回答“attention 这一行到底怎么算”
-- `kv_cache/`
+- `10_kv_cache/`
   - 负责回答“历史 K/V 放在哪里，当前 token 的 K/V 怎么 append 进去”
 
 ---
@@ -907,7 +907,7 @@ float row_max = reduce[0];
 
 - 整个 query row 的最大分数
 
-这一步和 `softmax/README.md` 里的逻辑是同一种 reduction 模式。
+这一步和 `04_softmax/README.md` 里的逻辑是同一种 reduction 模式。
 
 ---
 

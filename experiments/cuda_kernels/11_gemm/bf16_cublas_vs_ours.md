@@ -5,7 +5,7 @@
 - `elementwise`
 - `softmax`
 - `online_softmax`
-- [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_cuda_core_vs_tensor_core.md)
+- [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_cuda_core_vs_tensor_core.md)
 
 所以这里不再重复解释最基础的：
 
@@ -177,7 +177,7 @@ ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn
 
 文件见：
 
-- [bf16_gemm_cublas.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/gemm/bf16_gemm_cublas.cu)
+- [bf16_gemm_cublas.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_gemm_cublas.cu)
 
 ### 3.1 文件结构
 

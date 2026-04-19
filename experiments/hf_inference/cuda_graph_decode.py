@@ -1,0 +1,286 @@
+import time
+
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, StaticCache
+
+
+MODEL_PATH = "/data/pretrained_models/Qwen3-0.6B"
+PROMPT = (
+    "Explain why CUDA Graph is especially useful for small per-step decode work "
+    "in LLM inference."
+)
+DECODE_STEPS = 10
+WARMUP_STEPS = 20
+
+
+def sync_cuda() -> None:
+    torch.cuda.synchronize()
+
+
+def prefill_static_cache(
+    model: AutoModelForCausalLM,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    max_cache_len: int,
+) -> tuple[StaticCache, int]:
+    prompt_len = input_ids.shape[1]
+    cache = StaticCache(config=model.config, max_cache_len=max_cache_len)
+    cache_position = torch.arange(prompt_len, device=input_ids.device, dtype=torch.long)
+
+    with torch.no_grad():
+        outputs = model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=cache,
+            cache_position=cache_position,
+            use_cache=True,
+            return_dict=True,
+        )
+
+    first_decode_token_id = int(outputs.logits[:, -1, :].argmax(dim=-1).item())
+    return cache, first_decode_token_id
+
+
+def fill_decode_inputs(
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    cache_position: torch.Tensor,
+    token_id: int,
+    total_len: int,
+    max_cache_len: int,
+    device: torch.device,
+) -> None:
+    input_ids[0, 0] = token_id
+    attention_mask.zero_()
+    attention_mask[:, :total_len] = 1
+    cache_position[0] = total_len - 1
+
+
+def benchmark_eager(
+    model: AutoModelForCausalLM,
+    prompt_len: int,
+    max_cache_len: int,
+    cache: StaticCache,
+    first_decode_token_id: int,
+    input_dtype: torch.dtype,
+    mask_dtype: torch.dtype,
+    device: torch.device,
+) -> tuple[float, list[int]]:
+    decode_input_ids = torch.zeros((1, 1), device=device, dtype=input_dtype)
+    decode_attention_mask = torch.zeros((1, max_cache_len), device=device, dtype=mask_dtype)
+    decode_cache_position = torch.zeros((1,), device=device, dtype=torch.long)
+
+    for _ in range(WARMUP_STEPS):
+        token_id = first_decode_token_id
+        for step in range(DECODE_STEPS):
+            total_len = prompt_len + step + 1
+            fill_decode_inputs(
+                input_ids=decode_input_ids,
+                attention_mask=decode_attention_mask,
+                cache_position=decode_cache_position,
+                token_id=token_id,
+                total_len=total_len,
+                max_cache_len=max_cache_len,
+                device=device,
+            )
+            with torch.no_grad():
+                outputs = model(
+                    input_ids=decode_input_ids,
+                    attention_mask=decode_attention_mask,
+                    past_key_values=cache,
+                    cache_position=decode_cache_position,
+                    use_cache=True,
+                    return_dict=True,
+                )
+            token_id = int(outputs.logits[:, -1, :].argmax(dim=-1).item())
+
+    sync_cuda()
+    generated_ids = [first_decode_token_id]
+    token_id = first_decode_token_id
+    start = time.perf_counter()
+    for step in range(DECODE_STEPS):
+        total_len = prompt_len + step + 1
+        fill_decode_inputs(
+            input_ids=decode_input_ids,
+            attention_mask=decode_attention_mask,
+            cache_position=decode_cache_position,
+            token_id=token_id,
+            total_len=total_len,
+            max_cache_len=max_cache_len,
+            device=device,
+        )
+        with torch.no_grad():
+            outputs = model(
+                input_ids=decode_input_ids,
+                attention_mask=decode_attention_mask,
+                past_key_values=cache,
+                cache_position=decode_cache_position,
+                use_cache=True,
+                return_dict=True,
+            )
+        token_id = int(outputs.logits[:, -1, :].argmax(dim=-1).item())
+        generated_ids.append(token_id)
+    sync_cuda()
+    end = time.perf_counter()
+
+    return end - start, generated_ids
+
+
+def benchmark_cuda_graph(
+    model: AutoModelForCausalLM,
+    prompt_len: int,
+    max_cache_len: int,
+    cache: StaticCache,
+    first_decode_token_id: int,
+    input_dtype: torch.dtype,
+    mask_dtype: torch.dtype,
+    device: torch.device,
+) -> tuple[float, list[int]]:
+    static_input_ids = torch.zeros((1, 1), device=device, dtype=input_dtype)
+    static_attention_mask = torch.zeros((1, max_cache_len), device=device, dtype=mask_dtype)
+    static_cache_position = torch.zeros((1,), device=device, dtype=torch.long)
+
+    fill_decode_inputs(
+        input_ids=static_input_ids,
+        attention_mask=static_attention_mask,
+        cache_position=static_cache_position,
+        token_id=first_decode_token_id,
+        total_len=prompt_len + 1,
+        max_cache_len=max_cache_len,
+        device=device,
+    )
+
+    warmup_stream = torch.cuda.Stream()
+    warmup_stream.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(warmup_stream):
+        with torch.no_grad():
+            for _ in range(WARMUP_STEPS):
+                graph_outputs = model(
+                    input_ids=static_input_ids,
+                    attention_mask=static_attention_mask,
+                    past_key_values=cache,
+                    cache_position=static_cache_position,
+                    use_cache=True,
+                    return_dict=True,
+                )
+    torch.cuda.current_stream().wait_stream(warmup_stream)
+    sync_cuda()
+
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        with torch.no_grad():
+            graph_outputs = model(
+                input_ids=static_input_ids,
+                attention_mask=static_attention_mask,
+                past_key_values=cache,
+                cache_position=static_cache_position,
+                use_cache=True,
+                return_dict=True,
+            )
+
+    sync_cuda()
+    generated_ids = [first_decode_token_id]
+    token_id = first_decode_token_id
+    start = time.perf_counter()
+    for step in range(DECODE_STEPS):
+        total_len = prompt_len + step + 1
+        fill_decode_inputs(
+            input_ids=static_input_ids,
+            attention_mask=static_attention_mask,
+            cache_position=static_cache_position,
+            token_id=token_id,
+            total_len=total_len,
+            max_cache_len=max_cache_len,
+            device=device,
+        )
+        graph.replay()
+        token_id = int(graph_outputs.logits[:, -1, :].argmax(dim=-1).item())
+        generated_ids.append(token_id)
+    sync_cuda()
+    end = time.perf_counter()
+
+    return end - start, generated_ids
+
+
+def main() -> None:
+    device = torch.device("cuda")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_PATH,
+        dtype=torch.bfloat16,
+        local_files_only=True,
+    ).to(device)
+    model.eval()
+
+    encoded = tokenizer(PROMPT, return_tensors="pt")
+    input_ids = encoded["input_ids"].to(device)
+    attention_mask = encoded["attention_mask"].to(device)
+    prompt_len = input_ids.shape[1]
+    max_cache_len = prompt_len + DECODE_STEPS
+
+    eager_cache, eager_first_decode_token_id = prefill_static_cache(
+        model=model,
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        max_cache_len=max_cache_len,
+    )
+    graph_cache, graph_first_decode_token_id = prefill_static_cache(
+        model=model,
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        max_cache_len=max_cache_len,
+    )
+
+    eager_total_sec, eager_generated_ids = benchmark_eager(
+        model=model,
+        prompt_len=prompt_len,
+        max_cache_len=max_cache_len,
+        cache=eager_cache,
+        first_decode_token_id=eager_first_decode_token_id,
+        input_dtype=input_ids.dtype,
+        mask_dtype=attention_mask.dtype,
+        device=device,
+    )
+    graph_total_sec, graph_generated_ids = benchmark_cuda_graph(
+        model=model,
+        prompt_len=prompt_len,
+        max_cache_len=max_cache_len,
+        cache=graph_cache,
+        first_decode_token_id=graph_first_decode_token_id,
+        input_dtype=input_ids.dtype,
+        mask_dtype=attention_mask.dtype,
+        device=device,
+    )
+
+    if eager_generated_ids != graph_generated_ids:
+        raise RuntimeError("Eager decode and CUDA Graph decode produced different token ids.")
+
+    eager_ms = eager_total_sec * 1000.0 / DECODE_STEPS
+    graph_ms = graph_total_sec * 1000.0 / DECODE_STEPS
+    eager_tps = DECODE_STEPS / eager_total_sec
+    graph_tps = DECODE_STEPS / graph_total_sec
+    generated_text = tokenizer.decode(eager_generated_ids, skip_special_tokens=True)
+
+    print("experiment: hf_inference/cuda_graph_decode")
+    print(f"prompt token count: {prompt_len}")
+    print("decode batch size: 1")
+    print(f"decode steps: {DECODE_STEPS}")
+    print("decode tokens per iteration: 1")
+    print(f"static decode_input_ids shape: {(1, 1)}")
+    print(f"static decode_attention_mask shape: {(1, max_cache_len)}")
+    print("")
+    print(f"first decode token id from prefill logits: {eager_first_decode_token_id}")
+    print(f"generated token ids: {eager_generated_ids}")
+    print("")
+    print(f"eager avg decode latency: {eager_ms:.3f} ms/token")
+    print(f"eager decode throughput: {eager_tps:.2f} tokens/s")
+    print(f"cuda graph avg decode latency: {graph_ms:.3f} ms/token")
+    print(f"cuda graph decode throughput: {graph_tps:.2f} tokens/s")
+    print(f"throughput speedup: {graph_tps / eager_tps:.3f}x")
+    print("")
+    print("generated continuation:")
+    print(generated_text)
+
+
+if __name__ == "__main__":
+    main()

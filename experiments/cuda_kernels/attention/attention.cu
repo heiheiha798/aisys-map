@@ -137,9 +137,9 @@ float max_abs_diff(const std::vector<float>& a, const std::vector<float>& b) {
 }  // namespace
 
 int main() {
-  constexpr int seq_len = 64;
+  constexpr int seq_len = 512;
   constexpr int head_dim = 32;
-  constexpr int threads_per_block = 128;
+  constexpr int threads_per_block = 32;
 
   const size_t numel = static_cast<size_t>(seq_len) * head_dim;
   const size_t bytes = numel * sizeof(float);
@@ -156,11 +156,11 @@ int main() {
   for (int row = 0; row < seq_len; ++row) {
     for (int d = 0; d < head_dim; ++d) {
       size_t idx = static_cast<size_t>(row) * head_dim + d;
-      h_q[idx] = 0.07f * std::sin((row + 1) * (d + 1) * 0.13f) +
-                 0.03f * static_cast<float>((row + d) % 5 - 2);
-      h_k[idx] = 0.05f * std::cos((row + 3) * (d + 1) * 0.11f) +
-                 0.04f * static_cast<float>((row * 3 + d) % 7 - 3);
-      h_v[idx] = 0.06f * std::sin((row + 5) * (d + 2) * 0.09f) +
+      h_q[idx] = 0.08f * std::sin((row + 2) * (d + 1) * 0.09f) +
+                 0.02f * static_cast<float>((row + d) % 5 - 2);
+      h_k[idx] = 0.07f * std::cos((row + 4) * (d + 2) * 0.06f) +
+                 0.03f * static_cast<float>((row * 3 + d) % 7 - 3);
+      h_v[idx] = 0.05f * std::sin((row + 6) * (d + 1) * 0.11f) +
                  0.02f * static_cast<float>((row * 5 + d * 2) % 9 - 4);
     }
   }

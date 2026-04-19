@@ -21,9 +21,9 @@
 
 当前程序使用：
 
-- `seq_len = 64`
+- `seq_len = 512`
 - `head_dim = 32`
-- `threads_per_block = 128`
+- `threads_per_block = 32`
 
 并且当前实现是：
 
@@ -36,46 +36,52 @@
 
 | binary | kernel | dur(us) | mem % | compute % | l1/tex % | l2 % | occ % |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `attention` | `attention_kernel` | `6.34` | `8.78` | `2.89` | `22.35` | `5.43` | `5.80` |
+| `attention` | `attention_kernel` | `49.92` | `64.10` | `12.91` | `66.23` | `9.33` | `8.34` |
 
 ## 最直接的结论
 
-- 这份教学版 attention 现在最明显的问题不是算力不够，而是 kernel 太小。
-- `grid size = 64`，但机器上有 `128` 个 SM，这意味着连“一块一个 SM”都铺不满。
-- `achieved occupancy = 5.80%`，说明这次 profile 更像在看一个过小 kernel 的启动和同步画像，而不是在看 attention 的极限性能。
+- 同样在 `seq_len = 512, head_dim = 32` 这组参数下，这份普通 attention 明显比当前教学版 `flash_attention` 更快。
+- 当前 `attention_kernel` 的 `duration = 49.92 us`，而 `flash_attention_kernel` 是 `1.06 ms`，差了大约 `21x`。
+- 这不代表普通 attention 比 FlashAttention 思路更优，只代表当前这个最小 `flash_attention` 实现还非常原始。
 
 ## 这个画像在说明什么
 
 先看几个最关键的数字：
 
-- `duration = 6.34 us`
-- `memory throughput = 8.78%`
-- `compute throughput = 2.89%`
-- `achieved occupancy = 5.80%`
+- `duration = 49.92 us`
+- `memory throughput = 64.10%`
+- `compute throughput = 12.91%`
+- `achieved occupancy = 8.34%`
+- `grid size = 512`
 
 这几项一起看时，结论很清楚：
 
-- 它不是 compute-bound
-- 也不是典型的大带宽 memory-bound
-- 更像一个因为 grid 太小、同步点很多、活跃 warp 太少而表现很差的小 kernel
+- 它已经不再是之前那种“过小 kernel 完全没铺开”的状态
+- `grid size = 512` 至少能把机器上的 `128` 个 SM 铺起来
+- 但它仍然不是一个高性能 attention，只是一个相对更像样的 vanilla baseline
 
 `ncu` 里最值得记住的两个信号是：
 
-- `No Eligible ≈ 94.81%`
-- `barrier stall ≈ 6.7 cycles`，约占 issue 间隔的 `34.9%`
+- `No Eligible ≈ 94.07%`
+- `L1/TEX Hit Rate ≈ 94.54%`
+- `L2 Hit Rate ≈ 98.06%`
 
 这说明：
 
-- 很多时候 scheduler 根本没有可发射 warp
-- block 内 softmax reduction 和同步，把这个小 kernel 的可并行性进一步压低了
+- scheduler 仍然经常拿不到 ready warp
+- 但至少访存命中率不差，问题不再只是 “kernel 太小”
+- 真正限制它的更像是：
+  - 显式 materialize 整行 `scores`
+  - block 内 softmax reduction
+  - 以及后续 `PV` 聚合的重复读写
 
 ## 访存不是零问题，但不是第一问题
 
 虽然这个 kernel 很小，但访存也不是完全规整：
 
-- `L1/TEX Hit Rate ≈ 78.08%`
-- `L2 Hit Rate ≈ 87.04%`
-- 全局访问里有 `114688` 个 excessive sectors，约占总量的 `76%`
+- `L1/TEX Hit Rate ≈ 92.69%`
+- `L2 Hit Rate ≈ 98.20%`
+- 全局访问里有 `7340032` 个 excessive sectors，约占总量的 `76%`
 
 所以当前这版 attention 不能简单说成“访存很好，只是算得慢”。
 
@@ -83,15 +89,24 @@
 
 - cache 命中率不差
 - 但访问仍然不够规整
-- 再加上 grid 很小、block 内 barrier 多，最后整体表现还是非常弱
+- 仍然有明显的 uncoalesced global access
+- 同时 softmax 这一段的同步和中间结果存取也很重
 
-## 这份教学版最该记住什么
+## 和 `flash_attention` 的同参对比
 
-1. 这次 profile 的主结论不是某条数学路径慢，而是当前问题规模太小，导致整个 kernel 根本没有把 GPU 跑起来。
-2. 这类“单 block 处理一行”的教学版 attention，适合解释 `QK^T -> softmax -> PV` 的闭环，但不适合代表真实 attention 的性能画像。
-3. 如果后面真的要做性能版 attention，第一步通常不是微调公式，而是：
-   - 扩大问题规模
-   - 改线程映射
-   - 减少 barrier
-   - 减少中间 `scores` 的显式存取
+同样是 `seq_len = 512, head_dim = 32`：
 
+| kernel | grid | block | dur | mem % | compute % | achieved occ |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `attention_kernel` | `512` | `32` | `49.92 us` | `64.10` | `12.91` | `8.34` |
+| `flash_attention_kernel` | `32` | `32` | `1.06 ms` | `3.44` | `1.02` | `2.08` |
+
+这里最值得记住的不是“普通 attention 赢了”，而是：
+
+1. 当前普通 attention 至少把 grid 铺开了，所以 GPU 利用率看起来像一个正常得多的 baseline。
+2. 当前教学版 flash attention 的主要问题不是 FlashAttention 思路，而是实现还太粗糙：
+   - `grid size = 32`
+   - `Active Warps Per Scheduler = 1.00`
+   - `Avg. Active Threads Per Warp = 17.14`
+   - shared memory bank conflict 非常重
+3. 因此现在这个对比更适合解释“为什么一个不成熟的 FlashAttention 教学实现会比普通 attention 更慢”，而不适合拿来判断算法优劣。

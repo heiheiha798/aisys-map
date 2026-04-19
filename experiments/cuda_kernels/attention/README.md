@@ -47,6 +47,486 @@ out[i]      = sum_j prob[i, j] * V[j]
 
 ---
 
+## LLM 场景
+
+如果你是从 LLM 推理进入这个话题，真正容易糊涂的地方通常不是：
+
+- `QK^T -> softmax -> PV`
+
+而是：
+
+- 训练 / prefill 时在算什么
+- decode 时“只输入 1 个 token”到底怎么算 attention
+- `KV cache` 是什么时候写进去的
+
+这几件事如果没理顺，后面的 kernel 看起来都会像“只是公式”。
+
+### 先给一个完全数字化的例子
+
+下面先固定一组参数，不然 `Q/K/V` 很容易一直停留在抽象符号层面。
+
+假设当前模型的这一层有：
+
+- `hidden_dim = 2048`
+- `num_heads = 16`
+
+那每个 head 的维度就是：
+
+```text
+head_dim = hidden_dim / num_heads = 2048 / 16 = 128
+```
+
+先假设这是最普通的 multi-head attention，不考虑 GQA / MQA，也不考虑 batch > 1。
+
+那么：
+
+- 输入到这一层 attention 之前，每个 token 的隐藏状态长度是 `2048`
+- 做完 `W_q / W_k / W_v` 线性投影之后，`q / k / v` 的总宽度也还是 `2048`
+- 然后再把这 `2048` 拆成 `16` 个 head，每个 head `128`
+
+所以如果当前有 `T` 个 token，那么在“还没拆 head”的视角里：
+
+```text
+X[T, 2048]
+Q[T, 2048]
+K[T, 2048]
+V[T, 2048]
+```
+
+在“已经拆成多头”的视角里，更常见的理解是：
+
+```text
+Q[T, 16, 128]
+K[T, 16, 128]
+V[T, 16, 128]
+```
+
+如果你只看某一个 head，比如第 `h=7` 个 head，那它其实就是：
+
+```text
+Q_h[T, 128]
+K_h[T, 128]
+V_h[T, 128]
+```
+
+而我们这个目录里的教学版 `attention.cu`，本质上就是在讲：
+
+- **对某一个 head 的 `Q_h / K_h / V_h`，一行一行做 attention**
+
+也就是说，这里可以直接把它理解成：
+
+```text
+Q[seq_len, head_dim]
+K[seq_len, head_dim]
+V[seq_len, head_dim]
+```
+
+其中在这个“单头视角”里：
+
+- `seq_len`
+  - 当前参与 attention 的 token 数量
+- `head_dim`
+  - 当前 head 的向量长度
+
+### 先把 prefill 的 shape 写死
+
+假设现在 prompt 长度是：
+
+```text
+T = 4
+```
+
+那进入这一层 attention 之前，这 4 个 token 的隐藏状态是：
+
+```text
+X[4, 2048]
+```
+
+经过三组投影矩阵后：
+
+```text
+Q[4, 2048]
+K[4, 2048]
+V[4, 2048]
+```
+
+拆成 16 个 head 之后：
+
+```text
+Q[4, 16, 128]
+K[4, 16, 128]
+V[4, 16, 128]
+```
+
+如果只看第 7 个 head，那么就是：
+
+```text
+Q_7[4, 128]
+K_7[4, 128]
+V_7[4, 128]
+```
+
+这时 attention 在这个 head 上算的就是：
+
+```text
+[4, 128] x [4, 128]^T -> [4, 4]
+softmax([4, 4]) -> [4, 4]
+[4, 4] x [4, 128] -> [4, 128]
+```
+
+所以 prefill 时，对单个 head 来说，本质上是在算：
+
+```text
+4 个 query rows
+对 4 个 key rows
+做完整 attention
+```
+
+当然真实 LLM 里还会加 causal mask，所以实际上：
+
+- 第 0 行只能看第 0 列
+- 第 1 行只能看第 0、1 列
+- 第 2 行只能看第 0、1、2 列
+- 第 3 行只能看第 0、1、2、3 列
+
+但 shape 仍然是：
+
+```text
+Q_7[4, 128]
+K_7[4, 128]
+V_7[4, 128]
+```
+
+### 再把 decode 的 shape 写死
+
+现在假设 prefill 已经结束，历史长度是：
+
+```text
+past_len = 4
+```
+
+也就是说，前面 4 个 token 的 `K/V` 已经缓存好了。
+
+当前来了第 5 个 token，也就是只新输入：
+
+```text
+X_new[1, 2048]
+```
+
+经过投影之后：
+
+```text
+Q_new[1, 2048]
+K_new[1, 2048]
+V_new[1, 2048]
+```
+
+拆成多头后：
+
+```text
+Q_new[1, 16, 128]
+K_new[1, 16, 128]
+V_new[1, 16, 128]
+```
+
+如果仍然只看第 7 个 head，那么就是：
+
+```text
+q_new_7[1, 128]
+k_new_7[1, 128]
+v_new_7[1, 128]
+```
+
+而历史 cache 里，第 7 个 head 已经存着：
+
+```text
+K_cache_7[4, 128]
+V_cache_7[4, 128]
+```
+
+append 当前 token 之后，会变成：
+
+```text
+K_cache_7[5, 128]
+V_cache_7[5, 128]
+```
+
+所以 decode 时，这个 head 真正做 attention 的 shape 是：
+
+```text
+Q_decode_7[1, 128]
+K_decode_7[5, 128]
+V_decode_7[5, 128]
+```
+
+计算过程是：
+
+```text
+[1, 128] x [5, 128]^T -> [1, 5]
+softmax([1, 5]) -> [1, 5]
+[1, 5] x [5, 128] -> [1, 128]
+```
+
+这就是 decode 时最应该记住的一句话：
+
+- **新 token 只有 1 行 query，但它会对“历史 + 当前”的全部 K/V 做 attention**
+
+所以 decode 时不是：
+
+```text
+Q[1, 128], K[1, 128], V[1, 128]
+```
+
+然后做一个无聊的 `1x1 attention`。
+
+而是：
+
+```text
+Q[1, 128]
+K[past_len + 1, 128]
+V[past_len + 1, 128]
+```
+
+这里如果 `past_len = 4`，那就是：
+
+```text
+Q[1, 128]
+K[5, 128]
+V[5, 128]
+```
+
+### 先分清 prefill 和 decode
+
+在 LLM 里，通常会有两种阶段。
+
+第一种是 `prefill`：
+
+- 一次把一整段 prompt 喂进去
+- 例如 `T = 128` 个 token 一起进模型
+
+这时候对某一层、某一个 head，可以粗糙写成：
+
+```text
+Q[128, d]
+K[128, d]
+V[128, d]
+```
+
+然后做 causal attention：
+
+- 第 0 个 token 只能看自己
+- 第 1 个 token 看第 0、1 个
+- ...
+- 第 127 个 token 看前面全部 128 个
+
+这时候更像“整段一起算 attention”。
+
+第二种是 `decode`：
+
+- prompt 已经处理完了
+- 现在每次只生成 1 个新 token
+
+这时最容易混淆，因为：
+
+- 新输入只有 1 个 token
+- 但 attention 不是只跟自己算
+- 它还要看前面所有历史 token 的 K/V
+
+所以 decode 的核心不是：
+
+- “attention 只剩 1x1”
+
+而是：
+
+- “query 只有 1 行，但 key/value 来自整个历史 cache”
+
+### decode 时到底在算什么
+
+假设现在已经生成过 3 个历史 token：
+
+```text
+t0, t1, t2
+```
+
+它们的 K/V 已经在 cache 里：
+
+```text
+K_cache[0] = k0
+K_cache[1] = k1
+K_cache[2] = k2
+
+V_cache[0] = v0
+V_cache[1] = v1
+V_cache[2] = v2
+```
+
+现在来了一个新 token `t3`。
+
+经过当前层的线性投影之后，你会得到它自己的：
+
+```text
+q3, k3, v3
+```
+
+这时对当前 token 的 attention，本质上要算的是：
+
+```text
+score_3 = [ dot(q3, k0), dot(q3, k1), dot(q3, k2), dot(q3, k3) ]
+prob_3  = softmax(score_3)
+out_3   = prob_3[0] * v0 + prob_3[1] * v1 + prob_3[2] * v2 + prob_3[3] * v3
+```
+
+也就是说：
+
+- query 只有一行
+- 但 key/value 不是一行
+- key/value 是“历史 token + 当前 token 自己”
+
+如果写成形状，就是：
+
+```text
+Q_decode[1, d]
+K_decode[4, d]
+V_decode[4, d]
+```
+
+然后做的是：
+
+```text
+[1, d] x [4, d]^T -> [1, 4]
+softmax([1, 4])
+[1, 4] x [4, d] -> [1, d]
+```
+
+所以 decode 时 attention 没变，只是：
+
+- query 维度退化成了 `1`
+- key/value 维度仍然是“当前上下文长度”
+
+如果你把前面那个数字化例子代进去，就更具体：
+
+- `hidden_dim = 2048`
+- `num_heads = 16`
+- `head_dim = 128`
+- `past_len = 4`
+
+那在某一个 head 上，decode 时就是：
+
+```text
+q_t[1, 128]
+k_cache[5, 128]
+v_cache[5, 128]
+```
+
+然后算：
+
+```text
+score_t = q_t @ k_cache^T   -> [1, 5]
+prob_t  = softmax(score_t)  -> [1, 5]
+out_t   = prob_t @ v_cache  -> [1, 128]
+```
+
+### KV cache 到底是什么时候 append 的
+
+继续用上面那个 `t3` 的例子。
+
+当当前 token `t3` 来了以后，你会先算出：
+
+```text
+q3, k3, v3
+```
+
+然后需要把：
+
+```text
+k3, v3
+```
+
+写到 cache 的新位置，比如：
+
+```text
+K_cache[3] = k3
+V_cache[3] = v3
+```
+
+这就是 append。
+
+如果把它和 attention 串起来看，逻辑上可以理解成：
+
+1. 先得到当前 token 的 `q_t, k_t, v_t`
+2. 把 `k_t, v_t` append 到 cache 尾部
+3. 用 `q_t` 对“整个 cache 里的 K/V”做 attention
+
+也就是：
+
+```text
+cache before:  [k0, k1, k2]
+append k3  ->  [k0, k1, k2, k3]
+
+cache before:  [v0, v1, v2]
+append v3  ->  [v0, v1, v2, v3]
+
+then q3 attends to all 4 rows
+```
+
+你也可以把它理解成：
+
+- append 并不是 attention 的替代品
+- append 只是把“以后要被 attention 读到的 K/V”放到正确位置
+
+### 为什么 decode 能省很多算力
+
+如果没有 KV cache，那么生成第 `t` 个 token 时，你得把前面所有 token 又重新算一遍 K/V。
+
+有了 KV cache 之后，你只需要：
+
+1. 为当前新 token 算一次新的 `q_t, k_t, v_t`
+2. 把 `k_t, v_t` append 进去
+3. 用 `q_t` 读取整个历史 `K/V`
+
+这样就不必重复计算旧 token 的 K/V。
+
+所以 KV cache 省掉的是：
+
+- **旧 token 的 K/V 重算**
+
+而不是：
+
+- 当前 token 对历史信息的注意力计算
+
+### 这和当前这个教学版 `attention.cu` 是什么关系
+
+当前这个目录里的 `attention.cu` 仍然是：
+
+- 最基础的完整 attention
+- 用 `Q[seq_len, d] / K[seq_len, d] / V[seq_len, d]`
+- 一行一行算 `QK^T -> softmax -> PV`
+
+它没有直接实现：
+
+- causal mask
+- prefill
+- decode
+- KV cache
+
+但它仍然是理解 LLM attention 的基础，因为 decode 场景里真正算的那一行，本质上仍然是：
+
+```text
+一个 query row
+对一批 key rows 做点积
+再 softmax
+再加权求和 value
+```
+
+如果你把它和 `kv_cache/README.md` 连起来看，逻辑就更清楚了：
+
+- `attention/`
+  - 负责回答“attention 这一行到底怎么算”
+- `kv_cache/`
+  - 负责回答“历史 K/V 放在哪里，当前 token 的 K/V 怎么 append 进去”
+
+---
+
 ## 2. 为什么 attention 比 softmax 更像一个“小流水线”
 
 `softmax` 自己已经不是纯 elementwise，因为它需要 row-wise reduction。

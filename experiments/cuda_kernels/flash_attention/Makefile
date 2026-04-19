@@ -1,6 +1,6 @@
 NVCC ?= /usr/local/cuda-12.4/bin/nvcc
-TARGET := attention
-SRC := attention.cu
+TARGET := flash_attention
+SRC := flash_attention.cu
 
 .PHONY: all clean run
 

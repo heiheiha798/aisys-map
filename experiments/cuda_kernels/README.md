@@ -12,6 +12,11 @@
 - `layernorm/`
 - `embedding/`
 - `scatter/`
+- `attention/`
+- `rope/`
+- `kv_cache/`
+- `fused_rmsnorm/`
+- `flash_attention/`
 
 ## 编译约定
 
@@ -78,3 +83,40 @@ make NVCC=/usr/local/cuda-12.4/bin/nvcc
 - `scatter/`
   - `scatter / index_add`
   - 以不规则写和原子冲突为入口理解 scatter、contention 和 atomic updates
+- `attention/`
+  - 最小 attention kernel
+  - 把 `gemm / softmax / online softmax` 真正串起来
+- `rope/`
+  - rotary positional embedding
+  - 以旋转位置编码为入口理解 LLM 高频小算子
+- `kv_cache/`
+  - `KV cache append / update`
+  - 以 decode 阶段 cache 写入为入口理解 LLM 推理状态更新
+- `fused_rmsnorm/`
+  - `residual + rmsnorm`
+  - 以小算子 fusion 为入口理解 LLM block 中的高频 memory-bound kernel
+- `flash_attention/`
+  - `FlashAttention`
+  - 以 `sliced-K -> sliced-Q` 为入口理解 attention kernel 的现代并行切分
+  - 重点是 FA2 的工作划分与循环理解，不追求教学版 `.cu` 的性能领先
+
+## 后续规划
+
+后面如果只按 `LLM 常见 kernel` 往下做，建议顺序固定为：
+
+1. `attention/`
+   - 先做最小 attention kernel
+   - 把 `gemm / softmax / online softmax` 真正串起来
+2. `rope/`
+   - 补齐 LLM 里高频出现的旋转位置编码
+3. `kv_cache/`
+   - 以 append / update 为入口理解 decode 阶段的 cache 写入
+4. `fused_rmsnorm/`
+   - 以 `residual + rmsnorm` 为入口理解 LLM 小算子的 fusion
+5. `flash_attention/`
+   - 用一个学习用例收束 attention 优化主题，重点理解 FA2 的 `sliced-Q`
+
+这里的原则是：
+
+- 只做和 LLM block / LLM 推理直接相关的 kernel
+- 不再继续扩更多通用 CUDA 题目

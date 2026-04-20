@@ -1,3 +1,6 @@
 [submodule "experiments/nano-vllm"]
 	path = experiments/nano-vllm
 	url = git@github.com:heiheiha798/nano-vllm.git
+[submodule "experiments/nanoPD"]
+	path = experiments/nanoPD
+	url = git@github.com:heiheiha798/nanoPD.git

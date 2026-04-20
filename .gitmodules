@@ -4,3 +4,9 @@
 [submodule "experiments/nanoPD"]
 	path = experiments/nanoPD
 	url = git@github.com:heiheiha798/nanoPD.git
+[submodule "inference-frameworks/llama.cpp"]
+	path = inference-frameworks/llama.cpp
+	url = git@github.com:ggml-org/llama.cpp.git
+[submodule "inference-frameworks/vllm"]
+	path = inference-frameworks/vllm
+	url = git@github.com:vllm-project/vllm.git

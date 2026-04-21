@@ -8,7 +8,7 @@
 一方面，它会持续记录我对 `AI infrastructure / AI systems` 的学习、理解、笔记、图和最小实验。  
 另一方面，我也希望把这些内容整理成一份可以公开演进、能帮助别人建立系统地图的开源 repo。
 
-它的目标不是罗列零散名词，也不是只追热门系统，而是建立一张足够稳定的 `AI infra knowledge map`，帮助你把 `hardware`、`runtime`、`compiler`、`distributed training`、`serving`、`cache`、`scheduler`、`cluster orchestration`、`observability` 放回同一张系统图里。
+它的目标不是罗列零散名词，也不是只追热门系统，而是建立一张足够稳定的 `AI infra knowledge map`，帮助你把 `hardware`、`runtime`、`compiler`、`serving`、`cache`、`scheduler`、`cluster orchestration`、`observability` 放回同一张系统图里。
 
 如果你在读系统论文、看 serving engine 源码、分析训练/推理 bottleneck、判断新方向是否成立时，经常遇到这些问题：
 
@@ -62,9 +62,42 @@
 
 最终目标不是“学会某个库”，而是形成下面这些能力：
 
-- 能把任何一篇 training / inference / memory / scheduling / distributed paper 放回地图里
+- 能把任何一篇 inference / memory / scheduling / systems paper 放回地图里
 - 能说清一个工作到底是在优化 `compute`、`memory`、`interconnect`、`runtime`、`compiler`、`scheduler`、还是 `cluster control plane`
 - 能区分一个方向到底是 infra 核心创新、工程集成、还是 deployment 假设变化下的重新组合
+
+## 当前边界
+
+这个 repo 当前已经开始主动收束范围。
+
+目前明确的边界是：
+
+- 不深入训练系统
+- 不深入训练并行策略
+- 不以 HTTP server / web serving 为主线
+- 不把精力继续投入到极限 kernel 优化
+
+这不等于这些主题不重要，而是说：
+
+- 当前阶段更关心 inference systems 主线
+- 更关心 runtime、engine、scheduler、KV cache、attention、disaggregation、profiling
+- 更关心“系统分层和边界”而不是继续卷某一个 kernel 的极限性能
+
+所以现在这个 repo 的主问题可以更明确地写成：
+
+- 单机到多卡 inference runtime
+- serving engine 与 scheduler
+- KV cache / paged KV / block manager
+- prefill / decode / continuous batching / chunked prefill
+- backend primitive、engine、kernel 的边界
+- profiling、benchmark 和系统判断
+
+而不是：
+
+- 训练系统全景展开
+- HTTP API / server endpoint 设计
+- 全面覆盖所有 deployment 工程细节
+- 继续下钻每个 CUDA kernel 的最优实现
 
 ## Knowledge Map
 
@@ -98,6 +131,11 @@
 - `Triton`、`CUTLASS`、手写 CUDA 分别处在什么抽象层
 - graph capture / fusion / codegen / allocator 为什么重要
 
+这里当前的边界是：
+
+- 要理解 kernel / runtime 在系统里处于哪一层
+- 但不再把 repo 主线继续推进到“极限 kernel 优化”
+
 关键词：
 
 - `CUDA`
@@ -117,6 +155,8 @@
 - `NCCL` 在系统里到底负责什么
 - 通信模式为什么决定并行策略的扩展性
 
+这里保留为地图中的一层，但当前不是 repo 的主要展开方向。
+
 关键词：
 
 - `NCCL`
@@ -133,6 +173,8 @@
 - `DP / TP / PP / ZeRO / EP / FSDP` 分别切的是什么
 - activation、optimizer state、gradient、parameter 分别在哪一层占资源
 - 训练系统为什么常常先被 memory 和 communication 卡住
+
+这一块目前只保留地图位置，不再作为当前阶段的主学习目标。
 
 关键词：
 
@@ -172,6 +214,8 @@
 - prefill/decode 如何竞争 GPU 资源
 - scheduler 的目标到底是 TTFT、ITL、throughput 还是 goodput
 
+这是当前 repo 最核心的主线之一。
+
 关键词：
 
 - `continuous batching`
@@ -188,6 +232,8 @@
 - backend primitive library 提供哪些能力
 - engine 如何把 scheduler、KV memory、backend primitive 连接起来
 - backend、engine、kernel 为什么不能混成一层
+
+这也是当前 repo 最核心的主线之一。
 
 关键词：
 
@@ -239,6 +285,8 @@
 - job scheduler、serving scheduler、cluster scheduler 的边界是什么
 - multi-tenant、quota、priority、preemption 如何影响 AI workload
 - `Kubernetes / Ray / Slurm` 各自适合什么场景
+
+这一层保留地图位置，但当前不深入展开 HTTP service / cluster 运维细节。
 
 关键词：
 
@@ -323,19 +371,17 @@
 
 1. `Hardware / memory / interconnect fundamentals`
 2. `CUDA / Triton / compiler runtime / graph execution`
-3. `Distributed communication basics`
-4. `Training parallelism and training system map`
-5. `Attention / KV / prefill-decode fundamentals`
-6. `PagedAttention / vLLM / continuous batching / chunked prefill`
-7. `FlashAttention / FlashInfer / SGLang / TensorRT-LLM`
-8. `Prefix caching / state externalization / disaggregation`
-9. `Cluster scheduling / observability / production concerns`
-10. `Speculation / llama.cpp / quantization / edge / MoE` 回看与统一
+3. `Attention / KV / prefill-decode fundamentals`
+4. `PagedAttention / vLLM / continuous batching / chunked prefill`
+5. `FlashAttention / backend primitive / engine layering`
+6. `Disaggregation / KV transport / state externalization`
+7. `Profiling / evaluation / system judgement`
+8. `Speculation / quantization / edge / MoE` 回看与统一
 
 理由：
 
-- 先补硬件与通信，否则看 runtime 时容易误判瓶颈
-- 先补训练和推理的共同基础，再进入 serving 主线
+- 先补硬件与 runtime，否则看 inference engine 时容易误判瓶颈
+- 当前阶段主线是 inference systems，不再把训练系统展开成重点
 - 先看系统共性，再看具体 engine 的设计差异
 
 ## 使用方式
@@ -360,6 +406,13 @@
 2. 画 1 张系统图
 3. 做 1 个最小实验
 4. 回答 3 个问题
+
+但当前阶段的实验边界也已经明确：
+
+- 优先做能够帮助理解 inference systems 分层的实验
+- 不再继续新增只是为了追极限 kernel 性能的实验
+- 不再继续新增 HTTP server 方向的实验
+- 训练相关主题如果没有直接服务于 inference 主线，就不再展开
 
 固定回答的问题是：
 

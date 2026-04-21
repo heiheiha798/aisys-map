@@ -26,6 +26,33 @@
 - `notes/` 负责术语、边界、长期可复用的背景知识
 - `experiments/` 负责具体实验、代码、数据和结论
 
+## 当前边界
+
+这个目录现在也需要和整个 repo 的收束方向保持一致。
+
+当前更适合放进 `notes/` 的，是这些长期有复用价值的背景知识：
+
+- GPU 组织与 memory hierarchy
+- CUDA 编程对象与执行模型
+- Tensor Core / WMMA / GEMM 路线
+- kernel 分类与 runtime 基本概念
+- attention / KV cache / FlashAttention 这类 inference 主线的桥接知识
+
+当前不再继续作为主线展开的，是：
+
+- 训练系统大图
+- 训练并行策略细节
+- HTTP server / web service 细节
+- 单个 kernel 的极限优化技巧堆叠
+
+也就是说，`notes/` 现在应该更像：
+
+- inference systems 背景知识的稳定笔记区
+
+而不是：
+
+- 所有 AI systems 主题的无限制收纳区
+
 当前几个关键文件建议按下面分工理解：
 
 - [gpu_components.md](./gpu_components.md)
@@ -41,9 +68,7 @@
 - [basic_kernel_categories.md](./basic_kernel_categories.md)
   - `elementwise / reduction / GEMM` 的最基础分类直觉
 
-当前比较关键的桥接笔记：
+当前阶段最值得保留的 `notes/` 主题，也可以压成两类：
 
-- [attention_flash_bridge.md](./attention_flash_bridge.md)
-  - 把 `safe softmax`、`online softmax`、`causal attention`、`KV cache`、`FlashAttention` 接到同一条执行路径里
-- [cuda_tensor_core_wmma.md](./cuda_tensor_core_wmma.md)
-  - 把 `CUDA core`、`Tensor Core`、`WMMA`、低精度 GEMM 放到同一张图里
+- 物理资源和执行模型
+- inference 主线里的基础桥接知识

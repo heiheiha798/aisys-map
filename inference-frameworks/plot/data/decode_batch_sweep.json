@@ -1,0 +1,27 @@
+{
+  "gpu": 7,
+  "model": {
+    "nano_vllm": "/data/pretrained_models/Qwen3-0.6B",
+    "llama_cpp": "/data/home/tianjianyang/models/ggufs/Qwen3-0.6B-f16.gguf"
+  },
+  "prompt_len": 10,
+  "decode_tokens": 100,
+  "metric": "decode_tps",
+  "batch_sizes": [1, 2, 4, 8, 16],
+  "results": {
+    "nano_vllm": [
+      {"batch_size": 1, "decode_tps": 423.9291438124673},
+      {"batch_size": 2, "decode_tps": 751.6985510763092},
+      {"batch_size": 4, "decode_tps": 1498.7987923018343},
+      {"batch_size": 8, "decode_tps": 2977.2559299658496},
+      {"batch_size": 16, "decode_tps": 5236.882546767076}
+    ],
+    "llama_cpp": [
+      {"batch_size": 1, "decode_tps": 466.550659},
+      {"batch_size": 2, "decode_tps": 801.16333},
+      {"batch_size": 4, "decode_tps": 1520.172607},
+      {"batch_size": 8, "decode_tps": 2779.080322},
+      {"batch_size": 16, "decode_tps": 4551.285645}
+    ]
+  }
+}

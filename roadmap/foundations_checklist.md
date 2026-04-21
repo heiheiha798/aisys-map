@@ -31,6 +31,16 @@
 - C、I、J、L 作为辅助地图或下一阶段参考
 - D 只保留位置感，不作为当前主学习目标
 
+在当前主线里，quantization 更适合归到：
+
+- `E. Inference Fundamentals`
+- `B. Kernel / Operator / Compiler Runtime`
+
+之间的交叉主题来理解：
+
+- 一方面它改变 weight storage、memory footprint 和 execution path
+- 另一方面它并不自动等于吞吐按位宽比例线性提升
+
 也就是说，这份 checklist 不再表示“这些都要同等深度地学完”，而是表示：
 
 - 你要知道它们在地图里的位置

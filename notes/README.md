@@ -36,6 +36,7 @@
 - CUDA 编程对象与执行模型
 - Tensor Core / WMMA / GEMM 路线
 - kernel 分类与 runtime 基本概念
+- weight-only quantization 的基本边界与收益口径
 - attention / KV cache / FlashAttention 这类 inference 主线的桥接知识
 
 当前不再继续作为主线展开的，是：
@@ -72,3 +73,11 @@
 
 - 物理资源和执行模型
 - inference 主线里的基础桥接知识
+
+其中 quantization 目前更适合作为：
+
+- inference systems 里的一个常见 execution path 主题
+
+而不是：
+
+- 独立展开成量化训练或量化算法研究主线

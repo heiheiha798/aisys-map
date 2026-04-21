@@ -1,3 +1,4 @@
+import os
 import time
 
 import torch
@@ -16,6 +17,18 @@ PROMPT = (
 )
 DECODE_STEPS = 64
 WARMUP_STEPS = 20
+DEFAULT_COMPUTE_DTYPE = os.environ.get("AIMAP_BNB_COMPUTE_DTYPE", "fp16")
+DEFAULT_QUANT_TYPE = os.environ.get("AIMAP_BNB_QUANT_TYPE", "nf4")
+DEFAULT_ATTN_IMPL = os.environ.get("AIMAP_ATTN_IMPL")
+USE_DEVICE_ARGMAX = os.environ.get("AIMAP_DEVICE_ARGMAX", "0") == "1"
+
+
+def resolve_compute_dtype() -> torch.dtype:
+    if DEFAULT_COMPUTE_DTYPE == "fp16":
+        return torch.float16
+    if DEFAULT_COMPUTE_DTYPE == "bf16":
+        return torch.bfloat16
+    raise ValueError(f"Unsupported AIMAP_BNB_COMPUTE_DTYPE: {DEFAULT_COMPUTE_DTYPE}")
 
 
 def sync_cuda() -> None:
@@ -26,16 +39,18 @@ def load_model_and_tokenizer():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, local_files_only=True)
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=resolve_compute_dtype(),
+        bnb_4bit_quant_type=DEFAULT_QUANT_TYPE,
         bnb_4bit_use_double_quant=False,
     )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_PATH,
-        quantization_config=quant_config,
-        device_map="cuda",
-        local_files_only=True,
-    )
+    model_kwargs = {
+        "quantization_config": quant_config,
+        "device_map": "cuda",
+        "local_files_only": True,
+    }
+    if DEFAULT_ATTN_IMPL:
+        model_kwargs["attn_implementation"] = DEFAULT_ATTN_IMPL
+    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, **model_kwargs)
     model.eval()
     return tokenizer, model
 
@@ -77,6 +92,7 @@ def benchmark_cuda_graph(
     static_input_ids = torch.zeros((1, 1), device=device, dtype=input_dtype)
     static_attention_mask = torch.zeros((1, max_cache_len), device=device, dtype=mask_dtype)
     static_cache_position = torch.zeros((1,), device=device, dtype=torch.long)
+    static_next_token_ids = torch.zeros((1, 1), device=device, dtype=input_dtype)
     static_input_ids[0, 0] = first_decode_token_id
     static_attention_mask[:, : prompt_len + 1] = 1
     static_cache_position[0] = prompt_len
@@ -94,6 +110,8 @@ def benchmark_cuda_graph(
                     use_cache=True,
                     return_dict=True,
                 )
+                if USE_DEVICE_ARGMAX:
+                    static_next_token_ids.copy_(graph_outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True))
     torch.cuda.current_stream().wait_stream(warmup_stream)
     sync_cuda()
 
@@ -108,13 +126,18 @@ def benchmark_cuda_graph(
                 use_cache=True,
                 return_dict=True,
             )
+            if USE_DEVICE_ARGMAX:
+                static_next_token_ids.copy_(graph_outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True))
 
     sync_cuda()
     token_id = first_decode_token_id
     start = time.perf_counter()
     for step in range(DECODE_STEPS):
         graph.replay()
-        token_id = int(graph_outputs.logits[:, -1, :].argmax(dim=-1).item())
+        if USE_DEVICE_ARGMAX:
+            token_id = int(static_next_token_ids.item())
+        else:
+            token_id = int(graph_outputs.logits[:, -1, :].argmax(dim=-1).item())
         if step + 1 < DECODE_STEPS:
             static_input_ids[0, 0] = token_id
             static_cache_position[0] += 1
@@ -168,6 +191,11 @@ def main():
     print("experiment: quantization/hf_int4_cuda_graph_decode")
     print(f"model_path: {MODEL_PATH}")
     print("backend: Hugging Face transformers + bitsandbytes int4 + CUDA Graph")
+    print(f"bnb_4bit_compute_dtype: {DEFAULT_COMPUTE_DTYPE}")
+    print(f"bnb_4bit_quant_type: {DEFAULT_QUANT_TYPE}")
+    print(f"device argmax in graph: {USE_DEVICE_ARGMAX}")
+    if DEFAULT_ATTN_IMPL:
+        print(f"attn_implementation: {DEFAULT_ATTN_IMPL}")
     print(f"prompt token count: {prompt_len}")
     print("decode batch size: 1")
     print(f"warmup steps: {WARMUP_STEPS}")

@@ -80,7 +80,7 @@
 这不等于这些主题不重要，而是说：
 
 - 当前阶段更关心 inference systems 主线
-- 更关心 runtime、engine、scheduler、KV cache、attention、disaggregation、profiling
+- 更关心 runtime、engine、scheduler、KV cache、attention、quantization、disaggregation、profiling
 - 更关心“系统分层和边界”而不是继续卷某一个 kernel 的极限性能
 
 所以现在这个 repo 的主问题可以更明确地写成：
@@ -89,6 +89,7 @@
 - serving engine 与 scheduler
 - KV cache / paged KV / block manager
 - prefill / decode / continuous batching / chunked prefill
+- weight-only quantization 与 execution path
 - backend primitive、engine、kernel 的边界
 - profiling、benchmark 和系统判断
 

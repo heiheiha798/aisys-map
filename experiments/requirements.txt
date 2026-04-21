@@ -6,4 +6,5 @@ transformers<5
 # This repo currently uses:
 # flash_attn-2.6.3+cu124torch2.6-cp311-cp311-linux_x86_64.whl
 # flash-attn
+bitsandbytes
 xxhash

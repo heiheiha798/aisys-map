@@ -23,7 +23,8 @@
 
 - 不深入训练系统
 - 不把 HTTP server 作为主线
-- 不继续把精力投入极限 kernel 优化
+- 不继续把精力投入手写 CUDA 的极限 kernel 优化
+- `Triton` 仍然需要系统学习，因为它是理解 inference execution path、operator fusion 和 profiling 的关键抽象
 
 所以这份 checklist 更适合这样使用：
 
@@ -563,7 +564,7 @@
 
 当前阶段还要再加一条：
 
-5. 如果某个问题明显属于训练系统主线、HTTP server 主线、或者极限 kernel 优化主线，可以先不展开
+5. 如果某个问题明显属于训练系统主线、HTTP server 主线、或者手写 CUDA 极限优化主线，可以先不展开；`Triton` kernel optimization 仍保留在 inference runtime 的学习主线里
 
 这份 checklist 的目标不是证明你已经很懂，  
 而是让你快速知道：`自己到底还缺什么最基础的东西`。

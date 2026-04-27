@@ -80,7 +80,7 @@ expert 算完以后，再把输出按原 token 顺序拼回去。
 
 ## 这个实验脚本在做什么
 
-[`expert_parallel.py`](/data/home/tianjianyang/code/aisys-map/experiments/parallel/expert_parallel.py) 做的是一个最小 top-1 `EP` 实验。
+[`expert_parallel.py`](expert_parallel.py) 做的是一个最小 top-1 `EP` 实验。
 
 它包含：
 

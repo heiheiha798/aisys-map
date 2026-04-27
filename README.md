@@ -75,13 +75,14 @@
 - 不深入训练系统
 - 不深入训练并行策略
 - 不以 HTTP server / web serving 为主线
-- 不把精力继续投入到极限 kernel 优化
+- 不把精力继续投入到手写 CUDA 的极限 kernel 优化
 
 这不等于这些主题不重要，而是说：
 
 - 当前阶段更关心 inference systems 主线
 - 更关心 runtime、engine、scheduler、KV cache、attention、quantization、disaggregation、profiling
-- 更关心“系统分层和边界”而不是继续卷某一个 kernel 的极限性能
+- 仍然会学习 `Triton` kernel optimization，因为它是理解 inference execution path 和 profiling 的关键抽象
+- 更关心“系统分层和边界”而不是继续卷手写 CUDA kernel 的极限性能
 
 所以现在这个 repo 的主问题可以更明确地写成：
 
@@ -135,7 +136,8 @@
 这里当前的边界是：
 
 - 要理解 kernel / runtime 在系统里处于哪一层
-- 但不再把 repo 主线继续推进到“极限 kernel 优化”
+- `Triton` 仍然是当前阶段需要掌握的 kernel 抽象
+- 手写 CUDA 只保留必要的基础实验，不再作为主线继续追极限优化
 
 关键词：
 
@@ -411,7 +413,8 @@
 但当前阶段的实验边界也已经明确：
 
 - 优先做能够帮助理解 inference systems 分层的实验
-- 不再继续新增只是为了追极限 kernel 性能的实验
+- `Triton` 实验用于理解 kernel、operator、graph execution 和 profiling 的边界
+- 不再继续新增只是为了追手写 CUDA 极限性能的实验
 - 不再继续新增 HTTP server 方向的实验
 - 训练相关主题如果没有直接服务于 inference 主线，就不再展开
 
@@ -444,7 +447,7 @@
 
 - `notes/`: 各模块技术笔记
 - `diagrams/`: 知识图、路径图、系统分层图
-- `experiments/`: 最小 benchmark 和验证脚本
+- `experiments/`: 最小 benchmark、验证脚本和开源 case study submodule
 - `reading/`: 分主题阅读清单
 - `roadmap/`: 分周学习路线和阶段性总结
 

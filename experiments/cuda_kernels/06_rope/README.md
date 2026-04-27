@@ -558,7 +558,7 @@ bool ok = max_abs < 2e-5f;
 编译：
 
 ```bash
-cd experiments/cuda_kernels/rope
+cd experiments/cuda_kernels/06_rope
 make
 ```
 

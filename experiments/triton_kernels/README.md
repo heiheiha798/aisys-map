@@ -183,3 +183,18 @@ Triton 最核心的问题通常是：
 - 知道常见 LLM 小算子在 Triton 里会长成什么样
 
 那这个目录就已经够用了。
+
+## 下一步看真实项目
+
+这个目录是教学版 kernel，不追真实模型的完整执行路径。
+
+如果已经熟悉这里的基础写法，下一步可以看：
+
+- [`experiments/flash-deepseek-v2-lite/`](../flash-deepseek-v2-lite)
+
+它是 DeepSeek-V2-Lite decode path 的 Triton optimization case study，更适合观察：
+
+- small GEMV 和 batched/grouped GEMM-like kernel 的取舍
+- MoE route grouping 和 fixed topk reduce
+- attention decode path 里的 projection、RoPE、KV cache 和 online softmax
+- `nsys` / `ncu` 如何驱动 kernel 改动保留或撤回

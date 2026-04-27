@@ -2,7 +2,7 @@
 
 这份说明对应：
 
-- [`chunked_prefill.py`](/data/home/tianjianyang/code/aisys-map/experiments/hf_inference/chunked_prefill.py)
+- [`chunked_prefill.py`](chunked_prefill.py)
 
 它只解释一件事：
 
@@ -347,7 +347,7 @@ cache length = 46
 - 但每个新 token 看到的历史范围不应该变
 - 因此它在逻辑上应该和 `full prefill` 对齐
 
-当前的 [`chunked_prefill.py`](/data/home/tianjianyang/code/aisys-map/experiments/hf_inference/chunked_prefill.py) 只保留最小实现，
+当前的 [`chunked_prefill.py`](chunked_prefill.py) 只保留最小实现，
 重点是把这个分块执行过程写清楚，而不是在脚本里做额外对照。
 
 ## 为什么需要 chunked prefill

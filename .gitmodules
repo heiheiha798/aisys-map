@@ -7,3 +7,6 @@
 [submodule "inference-frameworks/llama.cpp"]
 	path = inference-frameworks/llama.cpp
 	url = git@github.com:ggml-org/llama.cpp.git
+[submodule "experiments/flash-deepseek-v2-lite"]
+	path = experiments/flash-deepseek-v2-lite
+	url = git@github.com:heiheiha798/Flash-DeepSeeek-V2-Lite.git

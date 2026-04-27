@@ -648,7 +648,7 @@ bool ok = k_max_abs < 1e-6f && v_max_abs < 1e-6f;
 编译：
 
 ```bash
-cd experiments/cuda_kernels/kv_cache
+cd experiments/cuda_kernels/10_kv_cache
 make
 ```
 

@@ -187,7 +187,7 @@ make
 ./row_rmsnorm
 ```
 
-更完整的 profile 结果见 [ncu_notes.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/05_layernorm/ncu_notes.md)。
+更完整的 profile 结果见 [ncu_notes.md](ncu_notes.md)。
 
 ## 现在最值得记住的区别
 

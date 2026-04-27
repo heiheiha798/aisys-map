@@ -2,7 +2,7 @@
 
 这份说明对应：
 
-- [`cuda_graph_decode.py`](/data/home/tianjianyang/code/aisys-map/experiments/hf_inference/cuda_graph_decode.py)
+- [`cuda_graph_decode.py`](cuda_graph_decode.py)
 
 它只解释一件事：
 

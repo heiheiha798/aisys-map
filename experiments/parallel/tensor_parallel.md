@@ -98,7 +98,7 @@ row parallel 会把 `W` 切成：
 
 ## 这个实验脚本在做什么
 
-[`tensor_parallel.py`](/data/home/tianjianyang/code/aisys-map/experiments/parallel/tensor_parallel.py) 做了两个最小整数实验：
+[`tensor_parallel.py`](tensor_parallel.py) 做了两个最小整数实验：
 
 1. `column_parallel_demo()`
    用一个小矩阵展示“切输出维，再拼起来”

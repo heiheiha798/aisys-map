@@ -2,7 +2,7 @@
 
 这个目录只服务于：
 
-- [experiments/triton-tutorials](/data/home/tianjianyang/code/aisys-map/experiments/triton-tutorials)
+- [experiments/triton-tutorials](.)
 
 也就是：
 
@@ -76,7 +76,7 @@
 
 对应目录：
 
-- [triton_kernels](/data/home/tianjianyang/code/aisys-map/experiments/triton_kernels)
+- [triton_kernels](../triton_kernels)
 
 一句话说清楚：
 

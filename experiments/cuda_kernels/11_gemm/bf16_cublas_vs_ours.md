@@ -5,7 +5,7 @@
 - `elementwise`
 - `softmax`
 - `online_softmax`
-- [bf16_cuda_core_vs_tensor_core.md](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_cuda_core_vs_tensor_core.md)
+- [bf16_cuda_core_vs_tensor_core.md](bf16_cuda_core_vs_tensor_core.md)
 
 所以这里不再重复解释最基础的：
 
@@ -15,8 +15,8 @@
 
 涉及稳定术语时，默认按下面两份 notes 理解：
 
-- GPU 存储层次见 [../../../notes/gpu_components.md](/data/home/tianjianyang/code/aisys-map/notes/gpu_components.md)
-- `FMA / MMA / Tensor Core / WMMA` 见 [../../../notes/cuda_tensor_core_wmma.md](/data/home/tianjianyang/code/aisys-map/notes/cuda_tensor_core_wmma.md)
+- GPU 存储层次见 [../../../notes/gpu_components.md](../../../notes/gpu_components.md)
+- `FMA / MMA / Tensor Core / WMMA` 见 [../../../notes/cuda_tensor_core_wmma.md](../../../notes/cuda_tensor_core_wmma.md)
 
 这里要回答的不是“怎么写一个 GEMM”，而是两个更现实的问题：
 
@@ -177,7 +177,7 @@ ampere_s16816gemm_bf16_128x64_ldg8_stages_32x6_nn
 
 文件见：
 
-- [bf16_gemm_cublas.cu](/data/home/tianjianyang/code/aisys-map/experiments/cuda_kernels/11_gemm/bf16_gemm_cublas.cu)
+- [bf16_gemm_cublas.cu](bf16_gemm_cublas.cu)
 
 ### 3.1 文件结构
 

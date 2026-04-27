@@ -1187,7 +1187,7 @@ bool ok = max_abs < 1e-4f;
 编译：
 
 ```bash
-cd experiments/cuda_kernels/attention
+cd experiments/cuda_kernels/09_attention
 make
 ```
 

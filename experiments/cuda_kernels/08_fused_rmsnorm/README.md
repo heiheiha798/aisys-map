@@ -544,7 +544,7 @@ bool ok = max_abs < 2e-4f;
 编译：
 
 ```bash
-cd experiments/cuda_kernels/fused_rmsnorm
+cd experiments/cuda_kernels/08_fused_rmsnorm
 make
 ```
 

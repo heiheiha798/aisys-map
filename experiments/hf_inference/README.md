@@ -14,8 +14,8 @@
 
 这些更基础的内容应该看：
 
-- [`experiments/vanilla_transformer/`](/data/home/tianjianyang/code/aisys-map/experiments/vanilla_transformer)
-- [`experiments/attention_variants/`](/data/home/tianjianyang/code/aisys-map/experiments/attention_variants)
+- [`experiments/vanilla_transformer/`](../vanilla_transformer)
+- [`experiments/attention_variants/`](../attention_variants)
 
 这个目录更像“真实 backend 对照物”。
 
@@ -42,7 +42,7 @@
 4. `cuda_graph_decode.py`
    - 看固定 `bsz=1` 的 decode 单步 forward 怎样做 CUDA Graph capture
    - 看它和普通 eager decode 的吞吐差异
-   - 具体解释看 [`cuda_graph.md`](/data/home/tianjianyang/code/aisys-map/experiments/hf_inference/cuda_graph.md)
+   - 具体解释看 [`cuda_graph.md`](cuda_graph.md)
 
 5. 其他和真实推理路径直接相关的小实验
    - 比如 attention mask
@@ -119,7 +119,7 @@ model.generate(...)
 
 - `model.generate(...)`
   - 是封装好的 eager generate
-- [`single_request_decode.py`](/data/home/tianjianyang/code/aisys-map/experiments/hf_inference/single_request_decode.py)
+- [`single_request_decode.py`](single_request_decode.py)
   - 是手动展开后的 eager generate
 
 这个区分很重要，因为后面如果去看推理引擎，你会看到另一类东西：

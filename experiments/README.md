@@ -19,6 +19,9 @@
   自己写的教学版 CUDA kernel，用来理解 CUDA 编程对象、memory hierarchy、Tensor Core 和 NCU 指标。
 - `triton-tutorials/`
   Triton 官方 tutorial 的本地注释版镜像，用来和自己的教学 kernel 对照。
+- `tilelang-puzzles/`
+  TileLang 官方 puzzles 的本地 fork 和学习记录，用来补齐 `T.Kernel`、`T.Parallel`、`T.Serial`、`T.Pipelined`、`alloc_shared`、`alloc_fragment`、`T.reduce_*`、`T.gemm` 这一套 DSL 抽象。
+  它更偏 kernel DSL 入门，不直接承担 serving runtime 的系统学习任务。
 
 当前边界是：
 

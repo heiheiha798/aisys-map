@@ -10,3 +10,6 @@
 [submodule "experiments/flash-deepseek-v2-lite"]
 	path = experiments/flash-deepseek-v2-lite
 	url = git@github.com:heiheiha798/Flash-DeepSeeek-V2-Lite.git
+[submodule "experiments/tilelang-puzzles"]
+	path = experiments/tilelang-puzzles
+	url = git@github.com:heiheiha798/tilelang-puzzles.git

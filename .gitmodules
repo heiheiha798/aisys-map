@@ -13,3 +13,6 @@
 [submodule "experiments/tilelang-puzzles"]
 	path = experiments/tilelang-puzzles
 	url = git@github.com:heiheiha798/tilelang-puzzles.git
+[submodule "experiments/KDT-DSL"]
+	path = experiments/KDT-DSL
+	url = git@github.com:heiheiha798/hpcgame2026.kernel-design-trial.git

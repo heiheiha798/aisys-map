@@ -22,6 +22,9 @@
 - `tilelang-puzzles/`
   TileLang 官方 puzzles 的本地 fork 和学习记录，用来补齐 `T.Kernel`、`T.Parallel`、`T.Serial`、`T.Pipelined`、`alloc_shared`、`alloc_fragment`、`T.reduce_*`、`T.gemm` 这一套 DSL 抽象。
   它更偏 kernel DSL 入门，不直接承担 serving runtime 的系统学习任务。
+- `KDT-DSL/`
+  HPCGame Kernel Design Trial 的 DSL 和题目仓库，用来学习 tile-based kernel DSL、software pipeline、SPM / fragment / load-store / compute overlap，以及“带硬件模型的教学型 kernel 编程”。
+  它更偏 `kernel / compiler runtime` 抽象和数据流训练，不直接承担 serving engine 学习任务。
 
 当前边界是：
 
@@ -55,6 +58,8 @@
 
 `flash-deepseek-v2-lite/` 不属于 `triton_kernels/` 的教学编号体系。它是学完基础 Triton kernel 后，用来观察真实工程如何把 kernel optimization 接到 inference runtime 的案例。
 
+`KDT-DSL/` 和 `tilelang-puzzles/` 更偏 DSL / kernel 编程抽象训练；`flash-deepseek-v2-lite/` 更偏真实推理路径上的 Triton case study。三者都放在 `experiments/`，但承担的学习任务不同。
+
 ## Submodule Usage
 
 初始化或更新 submodule：
@@ -67,4 +72,10 @@ git submodule update --init --recursive
 
 ```bash
 git submodule update --init experiments/flash-deepseek-v2-lite
+```
+
+或只拉 `KDT-DSL`：
+
+```bash
+git submodule update --init experiments/KDT-DSL
 ```

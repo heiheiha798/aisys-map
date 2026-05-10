@@ -137,6 +137,7 @@
 
 - 要理解 kernel / runtime 在系统里处于哪一层
 - `Triton` 仍然是当前阶段需要掌握的 kernel 抽象
+- `KDT-DSL` 这类教学型 kernel DSL 也值得保留，因为它能把 tile、SPM、pipeline、load/store/compute overlap 这些概念显式化
 - 手写 CUDA 只保留必要的基础实验，不再作为主线继续追极限优化
 
 关键词：

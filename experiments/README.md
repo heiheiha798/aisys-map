@@ -25,6 +25,9 @@
 - `KDT-DSL/`
   HPCGame Kernel Design Trial 的 DSL 和题目仓库，用来学习 tile-based kernel DSL、software pipeline、SPM / fragment / load-store / compute overlap，以及“带硬件模型的教学型 kernel 编程”。
   它更偏 `kernel / compiler runtime` 抽象和数据流训练，不直接承担 serving engine 学习任务。
+- `SGEMM_CUDA/`
+  一个相对独立的 CUDA SGEMM 优化仓库，用来集中学习 block tiling、warp tiling、vectorized load/store、shared memory bank conflict、double buffering 和 `ncu` 指标分析。
+  它比 `cuda_kernels/11_gemm` 更偏“完整 case study + profiler 驱动优化”，适合作为 GEMM 优化专项训练。
 
 当前边界是：
 
@@ -58,7 +61,7 @@
 
 `flash-deepseek-v2-lite/` 不属于 `triton_kernels/` 的教学编号体系。它是学完基础 Triton kernel 后，用来观察真实工程如何把 kernel optimization 接到 inference runtime 的案例。
 
-`KDT-DSL/` 和 `tilelang-puzzles/` 更偏 DSL / kernel 编程抽象训练；`flash-deepseek-v2-lite/` 更偏真实推理路径上的 Triton case study。三者都放在 `experiments/`，但承担的学习任务不同。
+`KDT-DSL/` 和 `tilelang-puzzles/` 更偏 DSL / kernel 编程抽象训练；`SGEMM_CUDA/` 更偏经典 CUDA GEMM 优化与 profiler 分析；`flash-deepseek-v2-lite/` 更偏真实推理路径上的 Triton case study。它们都放在 `experiments/`，但承担的学习任务不同。
 
 ## Submodule Usage
 
@@ -78,4 +81,10 @@ git submodule update --init experiments/flash-deepseek-v2-lite
 
 ```bash
 git submodule update --init experiments/KDT-DSL
+```
+
+或只拉 `SGEMM_CUDA`：
+
+```bash
+git submodule update --init experiments/SGEMM_CUDA
 ```

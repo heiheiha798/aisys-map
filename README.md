@@ -449,6 +449,7 @@
 - `notes/`: 各模块技术笔记
 - `diagrams/`: 知识图、路径图、系统分层图
 - `experiments/`: 最小 benchmark、验证脚本和开源 case study submodule
+  其中也包含 `SGEMM_CUDA`、`KDT-DSL`、`flash-deepseek-v2-lite` 这类偏 kernel / profiler / runtime case study 的 submodule
 - `reading/`: 分主题阅读清单
 - `roadmap/`: 分周学习路线和阶段性总结
 

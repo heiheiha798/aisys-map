@@ -16,3 +16,6 @@
 [submodule "experiments/KDT-DSL"]
 	path = experiments/KDT-DSL
 	url = git@github.com:heiheiha798/hpcgame2026.kernel-design-trial.git
+[submodule "experiments/SGEMM_CUDA"]
+	path = experiments/SGEMM_CUDA
+	url = git@github.com:heiheiha798/SGEMM_CUDA.git

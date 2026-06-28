@@ -28,7 +28,6 @@ repo 已主动收束到 **inference systems** 主线，关注：单机到多卡 
 notes/                  分主题技术笔记：GPU 组织、CUDA 编程对象、Tensor Core/WMMA、kernel 分类
 roadmap/                问题驱动的 foundations checklist
 experiments/            最小实验 + 开源 case study（见下）
-inference-frameworks/   llama.cpp / nano-vllm 的 batch sweep、patch、profiling 结果与作图
 ```
 
 `experiments/` 按**学习顺序**分成 5 组（详见 [experiments/README.md](experiments/README.md)）：
@@ -55,7 +54,7 @@ inference-frameworks/   llama.cpp / nano-vllm 的 batch sweep、patch、profilin
 | D | Training Parallelism | DP/TP/PP/ZeRO/EP/FSDP 各切什么；activation/optimizer/gradient/param 在哪占资源 | tensor parallel, pipeline parallel, FSDP, ZeRO, Megatron |
 | E | Inference Fundamentals ★ | prefill 与 decode 为何本质不同；decode 为何 memory-bound；KV cache 的逻辑作用与物理成本 | prefill, decode, KV cache, paged KV, MLA |
 | F | Serving Runtime / Scheduler ★ | request 如何进 engine；continuous batching / chunked prefill 为何出现；scheduler 的目标是 TTFT/ITL/throughput 还是 goodput | continuous batching, chunked prefill, goodput, SLO-aware scheduling |
-| G | Serving Primitive / Backend / Engine ★ | engine 为何不自己重写所有 kernel；backend、engine、kernel 为何不能混成一层 | FlashInfer, vLLM, SGLang, TensorRT-LLM, llama.cpp |
+| G | Serving Primitive / Backend / Engine ★ | engine 为何不自己重写所有 kernel；backend、engine、kernel 为何不能混成一层 | FlashInfer, vLLM, SGLang, TensorRT-LLM |
 | H | Memory System / Cache / State Externalization ★ | KV/activation/param/optimizer 各是什么性质的状态；prefix cache / KV externalization / offload 的边界 | prefix caching, LMCache, KV transport, disaggregation |
 | I | Model Artifact / Weight Format / Loading | checkpoint/shard/weight format 如何影响部署与冷启动 | safetensors, GGUF, engine build, cold start |
 | J | Cluster Scheduling / Orchestration / Reliability | job/serving/cluster scheduler 的边界；multi-tenant/quota/preemption | Kubernetes, Ray, Slurm, autoscaling, preemption |

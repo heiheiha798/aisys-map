@@ -1,32 +1,19 @@
 # GPU Components
 
-这份笔记只负责一件事：
-
-- 建立 GPU 硬件组织和存储层次的最小地图
-
-它主要回答：
+这份笔记只负责 GPU 硬件组织和存储层次的最小地图：
 
 - `SM` 是什么
-- `register / shared memory / local memory / L1/TEX / L2 / VRAM` 分别是什么
-- 哪些是程序显式管理的，哪些是硬件自动管理的
+- `register / shared memory / local memory / L1-TEX / L2 / VRAM` 分别是什么
+- 哪些由程序显式管理，哪些由硬件自动管理
 - 哪些是 cache，哪些不是
 
-它**不负责**展开这些主题：
-
-- `CUDA core`
-- `Tensor Core`
-- `FMA`
-- `MMA`
-- `WMMA`
-- 低精度 GEMM 为什么快
-
-这些放到 [cuda_tensor_core_wmma.md](./cuda_tensor_core_wmma.md)。
+`CUDA core / Tensor Core / FMA / MMA / WMMA` 放到 [cuda_tensor_core_wmma.md](./cuda_tensor_core_wmma.md)。
 
 ---
 
-## 1. 先看最短地图
+## 1. 最短地图
 
-如果先只记一个最小顺序，可以记成：
+可以先按距离计算资源的远近记：
 
 ```text
 register
@@ -35,274 +22,162 @@ register
 -> VRAM(global memory)
 ```
 
-但这里有一个很重要的边界：
+但这条链不是“全都是 cache”：
 
-- `register` 不是 cache
-- `shared memory` 也不是 cache
-- `L1/TEX` 和 `L2` 才是硬件自动管理的 cache / cache-like 通路
-
-所以这条链不是“全都是 cache”，而是：
-
-- 从离计算更近，到离计算更远的一组存储/访存层
+| 层级 | 谁管理 | 是不是 cache |
+|---|---|---|
+| register | 程序/编译器 | 不是 |
+| shared memory | 程序显式搬运和同步 | 不是 |
+| L1/TEX | 硬件自动管理 | 是 cache / cache-like 通路 |
+| L2 | 硬件自动管理 | 是 cache |
+| VRAM / global memory | 程序分配，硬件访问 | 不是 cache |
 
 ---
 
-## 2. `SM` 是什么
+## 2. `SM`
 
-`SM` 可以理解成 GPU 上反复复制的计算核心簇。
-
-每个 `SM` 里通常有：
+`SM` 可以理解成 GPU 上反复复制的执行容器。每个 `SM` 通常包含：
 
 - 执行线程的计算资源
 - 寄存器文件
 - shared memory
 - warp scheduler
-- 一些 load/store 与控制逻辑
+- load/store 与控制逻辑
 
-最容易记错的点是：
-
-- `SM` 不是一个单独的算术单元
-- 它更像是一整个“执行容器”
-
-如果你要区分：
-
-- `SM`
-- `CUDA core`
-- `Tensor Core`
-
-那这份笔记只负责 `SM` 这一层。  
-`CUDA core / Tensor Core` 的边界放到 [cuda_tensor_core_wmma.md](./cuda_tensor_core_wmma.md)。
+最容易记错的是：`SM` 不是一个单独的算术单元，而是一组能调度 warp、执行指令、访问片上资源的计算核心簇。
 
 ---
 
-## 3. `VRAM / global memory` 是什么
+## 3. `VRAM / global memory`
 
-最粗略地看：
+日常说的 GPU 显存可以叫 `VRAM`；现代 GPU 常见实现包括 `GDDR` 和 `HBM`。CUDA 讨论里的 `global memory`，性能上通常可以近似理解成走显存路径。
 
-- GPU 板载显存在日常语境里更适合直接叫：
-  - `VRAM`
-  - 或者“显存”
-- 现代 GPU 上常见的显存实现是：
-  - `GDDR`
-  - `HBM`
-- CUDA 讨论里常说的 `global memory`，性能上通常可以近似理解成走显存路径
-
-它的特点是：
+特点：
 
 - 容量最大
 - 带宽高
-- 但离 `SM` 更远
+- 离 `SM` 更远
 - 访问代价最高
 
-它适合放：
-
-- 模型权重
-- 大张量
-- KV cache
-- 放不进片上小存储的数据
+适合放模型权重、大张量、KV cache，以及放不进片上小存储的数据。
 
 ---
 
-## 4. `register` 是什么
+## 4. `register`
 
-`register` 是离计算最直接、最快的一层线程私有存储。
+`register` 是离计算最近、最快的一层线程私有存储。
 
-它的特点是：
+特点：
 
 - 很快
 - 很小
 - 线程私有
+- 不是 cache
 
-如果一个中间结果一直留在寄存器里，访问成本最低。
+如果中间值能一直留在寄存器里，访问成本最低。GEMM 里的 accumulator 例如 `float acc[TM][TN]`，通常就希望尽量留在寄存器中。
 
-但要注意：
-
-- `register` 不是 cache
-- 不是硬件偷偷帮你缓存的
-- 它更像线程当前手里直接拿着的值
-
-例如 GEMM 里的：
-
-```cpp
-float acc[TM][TN];
-```
-
-通常就尽量希望放在寄存器里。
+寄存器不是越多越好：单线程寄存器用得太多，会降低一个 `SM` 上能同时驻留的 warp/block 数，甚至导致 spill。
 
 ---
 
-## 5. `local memory` 是什么
+## 5. `local memory`
 
-`local memory` 这个名字非常容易误导。
+`local memory` 这个名字很误导。它逻辑上属于线程私有，但物理上通常不在寄存器里，往往走更慢的内存路径，常常接近显存访问代价。
 
-它不是：
+常见来源：
 
-- 离线程很近
-- 很快
-- 某种“线程小缓存”
-
-更准确地说：
-
-- 它逻辑上属于线程私有
-- 但物理上通常不在寄存器里
-- 往往还是走更慢的内存路径，常常接近显存访问代价
-
-它常见于：
-
-- 寄存器不够
+- 寄存器不够导致 spill
 - 局部数组太大
 - 编译器无法把某些局部对象保在寄存器里
 
-所以从性能角度看：
-
-- `local memory` 更像“线程私有但很慢的存储”
+性能直觉：`local memory` 更像“线程私有但很慢的存储”，不是“local 所以快”。
 
 ---
 
-## 6. `shared memory` 是什么
+## 6. `shared memory`
 
-`shared memory` 是位于 `SM` 上的一块小而快的 block 级共享存储。
+`shared memory` 是位于 `SM` 上的小而快的 block 级共享存储。
 
-它的特点是：
+特点：
 
 - 比显存快很多
 - 容量小
 - 一个 block 内线程共享
-- 需要程序显式搬运和显式同步
+- 程序显式搬运、显式同步
+- 不是 cache
 
-它常见的用途是：
+常见用途：
 
-- 搬运高复用数据
+- 缓存高复用数据
 - 降低 global memory 重复访问
 - 重排访问模式
 - 作为 block 内线程交换中间结果的中转站
 
-最重要的边界是：
-
-- `shared memory` 不是 cache
-- 它不是硬件自动帮你填的
-- 它更像程序员手动管理的小仓库
+把 shared memory 理解成程序员手动管理的小仓库，比理解成 cache 更稳。
 
 ---
 
-## 7. `L1/TEX` 是什么
+## 7. `L1/TEX`
 
-`L1/TEX` 在 `ncu` 里经常是一个合并口径。
+`L1/TEX` 在 `ncu` 里经常是一个合并口径，可以先理解成靠近 `SM` 的 cache / load-store 通路，把 `L1 cache` 和 texture 相关路径合在一起看。
 
-你可以先把它理解成：
+边界：
 
-- 靠近 `SM` 的一层 cache / load-store 通路
-- 把 `L1 cache` 和 `texture` 相关路径合在一起看
-
-这里最容易混淆的点是：
-
-- `L1/TEX` 是硬件自动管理的近端 cache / 访存通路
+- 它由硬件自动管理
 - 它不是 `shared memory`
+- `L1/TEX throughput` 高，通常说明靠近 `SM` 的 load/cache 路径很忙
 
-所以当你看到：
-
-- `L1/TEX throughput` 很高
-
-更直接的意思通常是：
-
-- 靠近 `SM` 的 load/cache 路径已经很忙
-
-而不是：
-
-- “shared memory 很忙”
-- 或者 “texture 在忙”
+不要把 `L1/TEX` 指标直接读成 shared memory 很忙。
 
 ---
 
-## 8. `L2 cache` 是什么
+## 8. `L2 cache`
 
 `L2 cache` 是比 `L1/TEX` 更大、更远、更共享的一层 cache。
 
-它的特点是：
+特点：
 
 - 硬件自动管理
 - 比 `L1/TEX` 更大
 - 比 `L1/TEX` 更远
-- 通常对多个 `SM` 更共享
+- 通常被多个 `SM` 共享
 
-它的作用是：
-
-- 缓冲最近访问过的数据
-- 减少直接打到显存的次数
-
-所以一个很粗略但够用的直觉是：
-
-- `L1/TEX` 更近、更小
-- `L2` 更远、更大
+作用是缓冲最近访问过的数据，减少直接打到显存的次数。
 
 ---
 
-## 9. `register`、`shared memory`、`L1/TEX`、`L2` 到底怎么区分
+## 9. 最容易混淆的边界
 
-这是最容易混的一组边界。
+| 对象 | 最重要的边界 |
+|---|---|
+| `register` | 线程私有，不是 cache |
+| `shared memory` | block 共享，程序显式管理，不是 cache |
+| `local memory` | 线程私有的逻辑语义，不代表物理上快 |
+| `L1/TEX` | 近端硬件 cache / 通路，不是 shared memory |
+| `L2` | 更大、更共享的硬件 cache |
+| `global memory` | 性能讨论里通常近似等于显存路径 |
 
-### `register`
+最重要的分界线是：
 
-- 线程私有
-- 不是 cache
-- 程序/编译器直接使用
-
-### `shared memory`
-
-- block 共享
-- 不是 cache
-- 程序显式管理
-
-### `L1/TEX`
-
-- 靠近 `SM`
-- 是硬件自动管理的 cache / 通路
-- 不是程序显式分配的存储
-
-### `L2`
-
-- 更大、更共享
-- 也是硬件自动管理
-
-所以最重要的分界线就是：
-
-- `register / shared memory`：程序显式使用的存储
+- `register / shared memory`：程序显式使用或编译器直接分配的存储
 - `L1/TEX / L2`：硬件自动管理的 cache / 访存层
 
 ---
 
 ## 10. 为什么这些层次重要
 
-很多 GPU 性能问题，本质上都不是“算术公式错了”，而是：
+很多 GPU 性能问题，本质不是算术公式错了，而是：
 
 - 数据是不是总从慢层取
 - 高复用数据有没有被留在近处
 - 访问模式是不是友好
 - `SM` 有没有被持续喂饱
 
-所以后面你看到很多优化，最终都在做下面这些事：
+所以很多 kernel 优化最后都在做同几件事：
 
-- 尽量把热点值留在寄存器
-- 尽量把高复用块搬到 shared memory
-- 尽量让 global memory 访问对 cache 友好
-- 尽量降低直接访问显存的压力
+- 把热点值留在寄存器
+- 把高复用块搬到 shared memory
+- 让 global memory 访问对 cache 和带宽更友好
+- 降低直接访问显存的压力
 
----
-
-## 11. 当前最容易混淆的点
-
-- `global memory` 在性能讨论里，经常可以近似理解成走显存路径
-- `local memory` 不是“local 所以快”
-- `shared memory` 不是 cache
-- `L1/TEX` 不是 shared memory
-- `register` 虽然最靠近计算，但它也不是 cache
-- “靠近计算单元”不等于“就是寄存器”
-
----
-
-## 12. 后续可继续补的方向
-
-- register pressure 为什么会影响 occupancy
-- bank conflict 到底是什么
-- coalesced memory access 为什么重要
-- warp scheduler 和 load/store 路径怎么配合
+后续可以继续补：register pressure、bank conflict、coalesced memory access、warp scheduler 与 load/store 路径。

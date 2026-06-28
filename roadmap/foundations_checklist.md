@@ -1,6 +1,6 @@
 # Foundations Checklist
 
-这是一份面向 `AI infra / AI systems` 入门的“问题驱动 checklist”。
+这是一份面向 `AI infra / AI systems` 入门的问题清单。它不是学习任务总表，而是用来定位“我还缺哪块基础”的地图。
 
 使用方式：
 
@@ -9,28 +9,11 @@
 - 不要求一开始很深，但要尽量覆盖全图
 - 如果某个问题完全答不上来，就说明这一块需要补
 
-默认标准：
+当前 repo 的主线已经收束到 inference systems。使用这份 checklist 时按下面优先级看：
 
-- 先求覆盖，不先求深入
-- 先能区分概念边界，再追实现细节
-- 先能回答“它是什么/不是什么/为什么重要”，再看源码和论文
-
-## 当前适用范围
-
-这份 checklist 现在保留为一张大地图，但当前 repo 的实际学习边界已经收束。
-
-当前阶段明确：
-
-- 不深入训练系统
-- 不把 HTTP server 作为主线
-- 不继续把精力投入手写 CUDA 的极限 kernel 优化
-- `Triton` 仍然需要系统学习，因为它是理解 inference execution path、operator fusion 和 profiling 的关键抽象
-
-所以这份 checklist 更适合这样使用：
-
-- A、B、E、F、G、H、K 作为当前主线
-- C、I、J、L 作为辅助地图或下一阶段参考
-- D 只保留位置感，不作为当前主学习目标
+- **主线**：A、B、E、F、G、H、K
+- **辅助地图**：C、I、J、L
+- **只保留位置感**：D
 
 在当前主线里，quantization 更适合归到：
 
@@ -42,10 +25,7 @@
 - 一方面它改变 weight storage、memory footprint 和 execution path
 - 另一方面它并不自动等于吞吐按位宽比例线性提升
 
-也就是说，这份 checklist 不再表示“这些都要同等深度地学完”，而是表示：
-
-- 你要知道它们在地图里的位置
-- 但当前 repo 的主线已经明确收束到 inference systems
+默认标准：先能区分概念边界，再追实现细节；先回答“是什么 / 不是什么 / 为什么重要”，再看源码和论文。
 
 ---
 
@@ -362,8 +342,6 @@
 - RadixAttention 是什么？
 - FlashInfer 在系统栈里属于哪一层？
 - TensorRT-LLM 更偏 engine、backend 还是 deployment stack？
-- llama.cpp 更偏哪条路线？
-- 为什么 llama.cpp 和 vLLM 的设计哲学差别很大？
 
 ### G3. Backend Path
 
@@ -552,19 +530,12 @@
 
 ---
 
-## 建议使用方法
-
-你不需要按顺序一条条学完。  
-更高效的方式是：
+## 使用方法
 
 1. 先扫一遍，标出完全不会的问题
 2. 先补“不会但高频出现”的问题
 3. 每学一个系统，再回到 checklist 找它对应的知识点
 4. 每补完一个模块，就把相关问题勾掉
+5. 如果一个问题不在当前主线，先确认它在地图里的位置，不急着展开
 
-当前阶段还要再加一条：
-
-5. 如果某个问题明显属于训练系统主线、HTTP server 主线、或者手写 CUDA 极限优化主线，可以先不展开；`Triton` kernel optimization 仍保留在 inference runtime 的学习主线里
-
-这份 checklist 的目标不是证明你已经很懂，  
-而是让你快速知道：`自己到底还缺什么最基础的东西`。
+这份 checklist 的目标不是证明你已经很懂，而是快速暴露基础缺口。

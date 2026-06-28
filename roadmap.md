@@ -1,216 +1,139 @@
 # Roadmap
 
-这份 roadmap 用来约束 `aisys-map` 的学习范围和优先级。它不是完整问题库，也不是待办清单；它只回答三件事：
+这份 roadmap 只约束当前仓库已经放进去的学习材料：`notes/` 下的 5 篇概念笔记，以及根目录下的 5 组 experiment / case study。
 
-1. 当前主线是什么
-2. 哪些模块只保留位置感
-3. 每个模块先问哪些关键问题
+它不追求覆盖完整 AI systems 版图，也不把暂时没有材料支撑的方向写成计划。
 
-当前 repo 已经收束到 **inference systems**：从硬件和 kernel 执行模型出发，理解 prefill/decode、KV cache、serving runtime、backend primitive、state management 和 profiling。
+## 当前主线
 
-## 优先级
-
-| 优先级 | 模块 | 处理方式 |
+| 顺序 | 材料 | 目标 |
 |---|---|---|
-| 主线 | A Hardware / Memory、B Kernel / Runtime、E Inference Fundamentals、F Serving Runtime、G Backend / Engine、H State / Cache、K Profiling / Evaluation | 需要笔记、实验或 case study 支撑 |
-| 辅助地图 | C Collective Communication、I Model Artifact / Loading、J Cluster / Reliability、L MoE / Speculation / Edge | 知道位置和边界，按需要补 |
-| 只保留位置感 | D Training Parallelism | 不作为当前实验主线 |
+| 0 | [notes](notes) | 建立读 kernel、profiler 和 inference 实验所需的共同词表 |
+| 1 | [01_model_basics](01_model_basics) | 先看懂 decoder-only 模型和 attention 变体的数据流 |
+| 2 | [02_kernel_intro](02_kernel_intro) | 用教学 CUDA / Triton kernel 建立并行、访存和基本性能直觉 |
+| 3 | [03_kernel_advanced](03_kernel_advanced) | 通过 DSL puzzles 和 SGEMM case study 深入 tile / pipeline / profiler 驱动优化 |
+| 4 | [04_inference_system](04_inference_system) | 把真实推理路径里的 batching、KV cache、量化和并行机制拆开 |
+| 5 | [05_case_studies](05_case_studies) | 读完整开源 engine / PD 分离 / 真实 decode kernel 优化案例 |
 
-`Triton` 仍然保留在主线里，因为它连接 kernel、operator fusion、backend path 和 profiling。手写 CUDA 保留为理解硬件和 profiler 的基础实验，不继续追求极限优化。
+## Notes 范围
 
-## A. Hardware / Memory / Interconnect
+`notes/` 只放跨实验复用的基础概念，不放一次性实验结论。
 
-目标：建立性能判断的物理直觉。
+| 笔记 | 解决的问题 | 对应实验 |
+|---|---|---|
+| [gpu_components.md](notes/gpu_components.md) | `SM / register / shared memory / local memory / L1 / L2 / VRAM` 的边界 | `02_kernel_intro`、`03_kernel_advanced`、`05_case_studies/flash-deepseek-v2-lite` |
+| [cuda_programming_objects.md](notes/cuda_programming_objects.md) | `kernel / grid / block / warp / thread / SM` 如何对应 | `02_kernel_intro/cuda_kernels` |
+| [cuda_kernel_advanced.md](notes/cuda_kernel_advanced.md) | 索引、launch 维度、occupancy、register、shared memory、divergence 的性能直觉 | `02_kernel_intro`、`03_kernel_advanced` |
+| [cuda_tensor_core_wmma.md](notes/cuda_tensor_core_wmma.md) | `CUDA core / Tensor Core / FMA / MMA / WMMA / fragment` 的计算路径边界 | `02_kernel_intro/*/11_gemm`、`03_kernel_advanced/SGEMM_CUDA` |
+| [basic_kernel_categories.md](notes/basic_kernel_categories.md) | elementwise、reduction、GEMM、indexed、fused attention 的瓶颈差异 | `02_kernel_intro`、`05_case_studies/flash-deepseek-v2-lite` |
 
-关键问题：
+## 01 Model Basics
 
-- GPU 和 CPU 的根本差别是什么？
-- `SM / warp / block / thread` 如何对应执行行为？
-- `register / shared memory / L1-TEX / L2 / VRAM` 的边界是什么？
-- 什么情况下优先怀疑 compute-bound、memory-bound 或 interconnect-bound？
-- 为什么 peak FLOPS / peak bandwidth 不能直接代表真实性能？
-
-对应材料：
-
-- [notes/gpu_components.md](notes/gpu_components.md)
-- [notes/cuda_programming_objects.md](notes/cuda_programming_objects.md)
-
-## B. Kernel / Operator / Compiler Runtime
-
-目标：理解一个 operator 如何落到 kernel、runtime 和 backend path。
-
-关键问题：
-
-- operator 和 kernel 的关系是什么？
-- kernel launch、CUDA Graph、allocator、fusion 分别解决什么 overhead？
-- Triton、CUTLASS、手写 CUDA 各处在哪个抽象层？
-- 单个 kernel 更快，为什么不一定带来端到端更快？
-- Tensor Core / WMMA / MMA 到底是哪条计算路径？
+目标：在不引入真实框架和真实权重的前提下，先把模型结构和 attention 数据流看清楚。
 
 对应材料：
 
-- [notes/basic_kernel_categories.md](notes/basic_kernel_categories.md)
-- [notes/cuda_kernel_advanced.md](notes/cuda_kernel_advanced.md)
-- [notes/cuda_tensor_core_wmma.md](notes/cuda_tensor_core_wmma.md)
-- [02_kernel_intro](02_kernel_intro)
-- [03_kernel_advanced](03_kernel_advanced)
+- `vanilla_transformer/`
+- `attention_variants/`
+- `attention_patterns/`
 
-## C. Collective Communication
+完成标准：
 
-目标：保留多卡系统的位置感，避免把通信问题误判成 kernel 问题。
+- 能说清 decoder-only block 的数据流。
+- 能区分 `MHA / MQA / GQA / MLA` 改变了什么。
+- 能把 dense、window、sparse、linear attention 放到 token connectivity 视角下比较。
 
-关键问题：
+## 02 Kernel Intro
 
-- all-reduce、all-gather、reduce-scatter 分别在交换什么？
-- latency 和 bandwidth 对小消息/大消息的影响有什么不同？
-- PCIe、NVLink、RDMA 拓扑如何影响并行策略？
-- 通信和计算 overlap 为什么难？
-
-当前只作为辅助地图，不单独展开实验。
-
-## D. Training Parallelism
-
-目标：只保留训练系统的概念边界。
-
-关键问题：
-
-- DP、TP、PP、EP、ZeRO、FSDP 分别切什么？
-- parameter、gradient、optimizer state、activation 的状态性质有什么不同？
-- 训练和推理在状态管理上的核心差别是什么？
-
-当前不深入训练系统，也不把训练并行作为 repo 主线。
-
-## E. Inference Fundamentals
-
-目标：理解 prefill/decode、attention 和 KV cache 的系统含义。
-
-关键问题：
-
-- prefill 和 decode 为什么本质不同？
-- decode 为什么常常更像 memory traffic 问题？
-- KV cache 的大小怎么估算，为什么它会成为 serving 的中心状态？
-- paged KV、block table、prefix cache 分别解决什么？
-- MLA、GQA、MQA 这类结构变化会怎样影响 serving 系统？
+目标：用教学 kernel 建立最小 GPU 编程和 profiling 直觉。
 
 对应材料：
 
-- [01_model_basics](01_model_basics)
-- [04_inference_system/hf_inference](04_inference_system/hf_inference)
+- `cuda_kernels/`
+- `triton_kernels/`
+- `triton-tutorials/`
+- `notes/gpu_components.md`
+- `notes/cuda_programming_objects.md`
+- `notes/cuda_kernel_advanced.md`
+- `notes/cuda_tensor_core_wmma.md`
+- `notes/basic_kernel_categories.md`
 
-## F. Serving Runtime / Scheduler
+完成标准：
 
-目标：理解 request 如何进入 engine，以及 scheduler 在优化什么。
+- 能读懂一个 kernel 的 thread/block 映射。
+- 能初步判断 kernel 更像 compute-bound、memory-bound、sync-bound 还是 runtime overhead。
+- 能把 CUDA 教学 kernel、Triton 教学 kernel 和官方 tutorial 对照起来。
 
-关键问题：
+## 03 Kernel Advanced
 
-- static batching 和 continuous batching 的差别是什么？
-- prefill 和 decode 为什么会竞争 GPU 资源？
-- chunked prefill 在平衡什么？
-- TTFT、ITL、throughput、goodput、P99 为什么会互相拉扯？
-- SLO-aware scheduling 为什么不能只看平均吞吐？
-
-对应材料：
-
-- [04_inference_system/continuous_batching](04_inference_system/continuous_batching)
-- [05_case_studies/nano-vllm](05_case_studies/nano-vllm)
-
-## G. Backend Primitive / Serving Engine
-
-目标：把 engine、backend primitive 和 kernel library 分清楚。
-
-关键问题：
-
-- serving engine 为什么不自己重写所有 kernel？
-- backend、engine、kernel 的边界是什么？
-- vLLM 的 PagedAttention 更像 kernel 优化还是 memory abstraction？
-- FlashInfer / TensorRT-LLM / SGLang 分别更靠近哪一层？
-- prefill 和 decode 为什么常常走不同 backend path？
+目标：在更真实的 kernel 优化语境下理解 tile、pipeline、shared memory、fragment 和 profiler 指标。
 
 对应材料：
 
-- [05_case_studies/nano-vllm](05_case_studies/nano-vllm)
-- [05_case_studies/flash-deepseek-v2-lite](05_case_studies/flash-deepseek-v2-lite)
+- `tilelang-puzzles/`
+- `KDT-DSL/`
+- `SGEMM_CUDA/`
+- `notes/cuda_kernel_advanced.md`
+- `notes/cuda_tensor_core_wmma.md`
 
-## H. Memory System / Cache / State Externalization
+完成标准：
 
-目标：把 KV cache、prefix cache、parameter/offload、PD 分离放到统一状态视角里。
+- 能区分教学 kernel 和优化 case study 的目标差异。
+- 能解释 SGEMM 优化里 block tile、warp tile、register tile、shared memory 和 Tensor Core 路径各自负责什么。
+- 能用 profiler 结果提出下一步假设，而不是只改参数。
 
-关键问题：
+## 04 Inference System
 
-- parameter、activation、optimizer state、KV cache 各是什么性质的状态？
-- 哪些状态适合缓存，哪些状态适合 externalization？
-- prefix caching 和 decode acceleration 有什么不同？
-- prefill-decode disaggregation 为什么不是简单拆成两台机器？
-- 状态从进程私有变成系统资源后，会引入哪些调度问题？
-
-对应材料：
-
-- [04_inference_system/quantization](04_inference_system/quantization)
-- [05_case_studies/nanoPD](05_case_studies/nanoPD)
-
-## I. Model Artifact / Loading Path
-
-目标：知道权重格式和加载路径会影响部署，而不是只影响文件后缀。
-
-关键问题：
-
-- checkpoint、shard、safetensors、GGUF、engine build 的边界是什么？
-- cold start 慢在加载、layout 转换、graph capture，还是 engine build？
-- weight-only quantization 改变的是 storage、bandwidth、kernel path，还是全部？
-
-当前作为辅助地图，需要时再展开。
-
-## J. Cluster / Orchestration / Reliability
-
-目标：知道 serving engine scheduler 和 cluster scheduler 不是同一层。
-
-关键问题：
-
-- job scheduler、serving scheduler、cluster scheduler 的边界是什么？
-- placement、quota、priority、preemption 各解决什么问题？
-- LLM serving 的 autoscaling 为什么比普通 web service 更难？
-- retry、rolling update、fault tolerance 在有状态 serving 下有什么额外成本？
-
-当前保留系统位置，不展开 HTTP service 细节。
-
-## K. Observability / Profiling / Evaluation
-
-目标：能用指标和 profiler 判断系统瓶颈，而不是只看平均吞吐。
-
-关键问题：
-
-- Nsight Compute、Nsight Systems、PyTorch profiler 各适合看什么？
-- kernel-level profiling 和 system-level tracing 的区别是什么？
-- TTFT、ITL、P99、goodput、GPU utilization、bandwidth utilization 应该如何一起看？
-- synthetic workload 和 real workload 会怎样改变结论？
-- benchmark 什么时候会误导？
+目标：把真实推理路径中的状态、调度和 backend 行为拆开看。
 
 对应材料：
 
-- [02_kernel_intro](02_kernel_intro)
-- [05_case_studies/flash-deepseek-v2-lite](05_case_studies/flash-deepseek-v2-lite)
+- `hf_inference/`
+- `continuous_batching/`
+- `quantization/`
+- `parallel/`
 
-## L. Sparse / MoE / Speculation / Edge
+完成标准：
 
-目标：保留下一阶段方向的位置感。
+- 能区分 prefill 和 decode 的工作负载特征。
+- 能解释 continuous batching 如何动态重组 request。
+- 能说明 weight-only quantization 主要改变存储、带宽和 kernel path，而不是自动带来线性加速。
+- 能用最小例子说明推理侧 `TP / EP` 在切什么、合什么。
 
-关键问题：
+## 05 Case Studies
 
-- speculative decoding 真正省的是哪部分成本？
-- MoE 的瓶颈更像 compute、memory、communication，还是 orchestration？
-- expert parallel 和 expert cache 在系统上意味着什么？
-- edge inference 与 datacenter inference 的最大瓶颈差异是什么？
-- quantization 在 edge 场景为什么经常变成 memory bandwidth 问题？
+目标：观察完整工程如何把模型、scheduler、KV cache、backend kernel 和 profiler workflow 接到一起。
 
-当前按 case study 或论文需要补，不作为全部展开的主线。
+对应材料：
+
+- `nano-vllm/`
+- `nanoPD/`
+- `flash-deepseek-v2-lite/`
+- `notes/basic_kernel_categories.md`
+- `notes/gpu_components.md`
+
+完成标准：
+
+- 能顺着 nano-vLLM 读出 engine、scheduler、paged KV cache、CUDA Graph 和 continuous batching 的关系。
+- 能解释 PD 分离为什么会把状态和调度边界暴露出来。
+- 能把 flash-deepseek-v2-lite 里的 decode kernel 优化和前面的 kernel 分类、GPU 存储层级对应起来。
+
+## 暂不展开
+
+这些方向只保留位置感，除非后续进入新的 experiment 或 case study，否则不写成当前 roadmap 主线：
+
+- 训练系统和训练并行
+- 集群调度、HTTP service、可靠性工程
+- 通用分布式通信专题
+- speculative decoding、MoE 系统、edge inference 的完整展开
+- 权重格式和部署产物的专门路线
 
 ## 通用判断模板
 
-学任何一个新机制时，都先回答：
+读任何一个实验或 case study 时，先回答：
 
-1. 它属于哪一层？
-2. 它主要优化 compute、memory、communication、runtime、scheduler、state，还是 deployment？
-3. 它依赖什么前提？
-4. 它不解决什么问题？
-5. 换成单卡、多卡、多机，结论会不会变？
-6. 换成离线推理、在线 serving、训练，结论会不会变？
+1. 它对应上面哪一个 experiment 分组？
+2. 它依赖哪一篇 `notes/` 概念笔记？
+3. 它主要优化 compute、memory、sync、runtime、scheduler、state，还是 deployment？
+4. 它是在教学最小机制，还是在观察真实工程取舍？
+5. 当前结论能否从单个 kernel 推到端到端系统？如果不能，边界在哪里？

@@ -26,7 +26,7 @@ repo 已主动收束到 **inference systems** 主线，关注：单机到多卡 
 
 ```
 notes/                  分主题技术笔记：GPU 组织、CUDA 编程对象、Tensor Core/WMMA、kernel 分类
-roadmap/                问题驱动的 foundations checklist
+roadmap.md              当前学习主线、模块优先级和关键问题
 01_model_basics/        模型入门：最朴素的数据流和 attention 变体
 02_kernel_intro/        kernel 入门：CUDA / Triton 教学版 kernel
 03_kernel_advanced/     kernel 深入：DSL puzzles 与 GEMM 优化 submodule

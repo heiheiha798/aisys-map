@@ -1,21 +1,21 @@
 [submodule "experiments/nano-vllm"]
-	path = experiments/nano-vllm
+	path = experiments/05_case_studies/nano-vllm
 	url = git@github.com:heiheiha798/nano-vllm.git
 [submodule "experiments/nanoPD"]
-	path = experiments/nanoPD
+	path = experiments/05_case_studies/nanoPD
 	url = git@github.com:heiheiha798/nanoPD.git
 [submodule "inference-frameworks/llama.cpp"]
 	path = inference-frameworks/llama.cpp
 	url = git@github.com:ggml-org/llama.cpp.git
 [submodule "experiments/flash-deepseek-v2-lite"]
-	path = experiments/flash-deepseek-v2-lite
+	path = experiments/05_case_studies/flash-deepseek-v2-lite
 	url = git@github.com:heiheiha798/Flash-DeepSeeek-V2-Lite.git
 [submodule "experiments/tilelang-puzzles"]
-	path = experiments/tilelang-puzzles
+	path = experiments/03_kernel_advanced/tilelang-puzzles
 	url = git@github.com:heiheiha798/tilelang-puzzles.git
 [submodule "experiments/KDT-DSL"]
-	path = experiments/KDT-DSL
+	path = experiments/03_kernel_advanced/KDT-DSL
 	url = git@github.com:heiheiha798/hpcgame2026.kernel-design-trial.git
 [submodule "experiments/SGEMM_CUDA"]
-	path = experiments/SGEMM_CUDA
+	path = experiments/03_kernel_advanced/SGEMM_CUDA
 	url = git@github.com:heiheiha798/SGEMM_CUDA.git

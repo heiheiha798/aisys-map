@@ -31,15 +31,17 @@ experiments/            最小实验 + 开源 case study（见下）
 inference-frameworks/   llama.cpp / nano-vllm 的 batch sweep、patch、profiling 结果与作图
 ```
 
-`experiments/` 下分三类：
+`experiments/` 按**学习顺序**分成 5 组（详见 [experiments/README.md](experiments/README.md)）：
 
-| 类型 | 目录 | 用途 |
+| 分组 | 目录 | 用途 |
 |------|------|------|
-| Kernel 学习 | `triton_kernels/` `cuda_kernels/` `triton-tutorials/` `tilelang-puzzles/`* `KDT-DSL/`* `SGEMM_CUDA/`* | 教学版 kernel、官方 tutorial 镜像、kernel DSL puzzles、GEMM 优化专项 |
-| Inference 机制 | `vanilla_transformer/` `attention_variants/` `attention_patterns/` `hf_inference/` `continuous_batching/` `quantization/` `parallel/` | 用最小脚本讲清数据流、状态流转和系统边界，不追真实性能 |
-| 开源 case study | `nano-vllm/`* `nanoPD/`* `flash-deepseek-v2-lite/`* | serving engine / PD 分离 / 真实模型 decode path 上的 Triton optimization |
+| 模型入门 | `01_model_basics/` | `vanilla_transformer` `attention_variants` `attention_patterns`：只看最朴素的数据流 |
+| Kernel 入门 | `02_kernel_intro/` | `cuda_kernels` `triton_kernels` `triton-tutorials`：教学版 kernel 与官方 tutorial 对照 |
+| Kernel 深入 | `03_kernel_advanced/` | `tilelang-puzzles`* `KDT-DSL`* `SGEMM_CUDA`*：kernel DSL puzzles 与 GEMM 优化专项 |
+| Inference 机制 | `04_inference_system/` | `hf_inference` `continuous_batching` `quantization` `parallel`：真实推理路径、调度、量化、并行 |
+| 实战演练 | `05_case_studies/` | `nano-vllm`* `nanoPD`* `flash-deepseek-v2-lite`*：完整开源 engine / PD 分离 / 真实 decode path Triton 优化 |
 
-`*` 为 git submodule。初始化：`git submodule update --init --recursive`，或只拉某一个：`git submodule update --init experiments/<name>`。
+`*` 为 git submodule。初始化：`git submodule update --init --recursive`，或只拉某一个：`git submodule update --init experiments/<group>/<name>`。
 
 ## Knowledge Map：12 个模块
 

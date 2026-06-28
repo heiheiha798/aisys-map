@@ -27,10 +27,16 @@ repo 已主动收束到 **inference systems** 主线，关注：单机到多卡 
 ```
 notes/                  分主题技术笔记：GPU 组织、CUDA 编程对象、Tensor Core/WMMA、kernel 分类
 roadmap/                问题驱动的 foundations checklist
-experiments/            最小实验 + 开源 case study（见下）
+01_model_basics/        模型入门：最朴素的数据流和 attention 变体
+02_kernel_intro/        kernel 入门：CUDA / Triton 教学版 kernel
+03_kernel_advanced/     kernel 深入：DSL puzzles 与 GEMM 优化 submodule
+04_inference_system/    inference 系统机制：真实推理路径、调度、量化、并行
+05_case_studies/        实战演练：完整开源 engine / PD 分离 / 真实 decode path
+experiments.md          上面 5 组实验和 case study 的索引
+requirements.txt        实验脚本共用的 Python 依赖
 ```
 
-`experiments/` 按**学习顺序**分成 5 组（详见 [experiments/README.md](experiments/README.md)）：
+实验和 case study 按**学习顺序**分成 5 组（详见 [experiments.md](experiments.md)）：
 
 | 分组 | 目录 | 用途 |
 |------|------|------|
@@ -40,7 +46,7 @@ experiments/            最小实验 + 开源 case study（见下）
 | Inference 机制 | `04_inference_system/` | `hf_inference` `continuous_batching` `quantization` `parallel`：真实推理路径、调度、量化、并行 |
 | 实战演练 | `05_case_studies/` | `nano-vllm`* `nanoPD`* `flash-deepseek-v2-lite`*：完整开源 engine / PD 分离 / 真实 decode path Triton 优化 |
 
-`*` 为 git submodule。初始化：`git submodule update --init --recursive`，或只拉某一个：`git submodule update --init experiments/<group>/<name>`。
+`*` 为 git submodule。初始化：`git submodule update --init --recursive`，或只拉某一个：`git submodule update --init <group>/<name>`。
 
 ## Knowledge Map：12 个模块
 

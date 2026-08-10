@@ -1,6 +1,6 @@
 # Roadmap
 
-这份 roadmap 只约束当前仓库已经放进去的学习材料：`notes/` 下的 5 篇概念笔记，以及根目录下的 5 组 experiment / case study。
+这份 roadmap 只约束当前仓库已经放进去的学习材料：`notes/` 下的概念笔记，以及根目录下的 5 组 experiment / case study。
 
 它不追求覆盖完整 AI systems 版图，也不把暂时没有材料支撑的方向写成计划。
 
@@ -21,6 +21,7 @@
 
 | 笔记 | 解决的问题 | 对应实验 |
 |---|---|---|
+| [attention/](notes/attention) | 从 causal attention、MLA、linear attention、Delta Rule 到 KDA 的连续背景 | `01_model_basics/vanilla_transformer`、`attention_variants`、`attention_patterns` |
 | [gpu_components.md](notes/gpu_components.md) | `SM / register / shared memory / local memory / L1 / L2 / VRAM` 的边界 | `02_kernel_intro`、`03_kernel_advanced`、`05_case_studies/flash-deepseek-v2-lite` |
 | [cuda_programming_objects.md](notes/cuda_programming_objects.md) | `kernel / grid / block / warp / thread / SM` 如何对应 | `02_kernel_intro/cuda_kernels` |
 | [cuda_kernel_advanced.md](notes/cuda_kernel_advanced.md) | 索引、launch 维度、occupancy、register、shared memory、divergence 的性能直觉 | `02_kernel_intro`、`03_kernel_advanced` |
@@ -33,6 +34,9 @@
 
 对应材料：
 
+- `notes/attention/00-from-vanilla-attention-to-kda.md`
+- `notes/attention/01-linear-attention-background.md`
+- `notes/attention/02-channel-and-kimi-k3-shapes.md`
 - `vanilla_transformer/`
 - `attention_variants/`
 - `attention_patterns/`
@@ -42,6 +46,7 @@
 - 能说清 decoder-only block 的数据流。
 - 能区分 `MHA / MQA / GQA / MLA` 改变了什么。
 - 能把 dense、window、sparse、linear attention 放到 token connectivity 视角下比较。
+- 能解释 Linear Attention 的固定状态、Delta Rule、channel-wise decay 和 KDA 更新。
 
 ## 02 Kernel Intro
 

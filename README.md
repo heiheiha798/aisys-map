@@ -35,7 +35,7 @@
 
 | 路径 | 内容 |
 |---|---|
-| [notes](notes) | GPU 组织、CUDA 编程对象、Tensor Core / WMMA、kernel 分类等概念笔记 |
+| [notes](notes) | Attention 学习主线、GPU 组织、CUDA 编程对象、Tensor Core / WMMA、kernel 分类等概念笔记 |
 | [01_model_basics](01_model_basics) | 模型入门：最朴素的数据流和 attention 变体 |
 | [02_kernel_intro](02_kernel_intro) | kernel 入门：CUDA / Triton 教学版 kernel |
 | [03_kernel_advanced](03_kernel_advanced) | kernel 深入：DSL puzzles 与 GEMM 优化 submodule |

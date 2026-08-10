@@ -16,6 +16,7 @@
 
 不用 Hugging Face、不用真实权重，只看最朴素的数据流。
 
+- `notes/attention/` — 按 `00 → 01 → 02` 阅读的概念主线：Vanilla Attention → MLA → Linear Attention → Delta Rule → KDA。
 - `vanilla_transformer/` — 最朴素的 decoder-only block：embedding → QKV → score → mask → softmax → PV → FFN → residual/LN，单头、无 RoPE、无 KV cache。
 - `attention_variants/` — 在上面的基础上引入 `MHA / MQA / GQA / MLA` 等变体，仍是 dummy weight、只求逻辑正确。
 - `attention_patterns/` — 一条独立主线：`dense / window / sparse / linear` attention，关注 token 间 connectivity 与 execution pattern。

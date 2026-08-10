@@ -8,6 +8,9 @@
 
 | 文件 | 负责内容 | 适合回答的问题 |
 |---|---|---|
+| [attention/00-from-vanilla-attention-to-kda.md](./attention/00-from-vanilla-attention-to-kda.md) | Vanilla Attention 到 MLA | causal attention、MHA/MQA/GQA/SWA/MLA 的公式、真实模型 shape 与 cache |
+| [attention/01-linear-attention-background.md](./attention/01-linear-attention-background.md) | Linear Attention 到 Gated DeltaNet | 固定状态、feature map、重建误差、Delta Rule、gate 与 decay |
+| [attention/02-channel-and-kimi-k3-shapes.md](./attention/02-channel-and-kimi-k3-shapes.md) | KDA 与 Kimi K3 | channel-wise decay、KDA 递推和 Kimi K3 的真实 tensor shape |
 | [gpu_components.md](./gpu_components.md) | GPU 组织和存储层次 | `SM / register / shared memory / local memory / L1-TEX / L2 / VRAM` 分别是什么 |
 | [cuda_programming_objects.md](./cuda_programming_objects.md) | CUDA 编程对象 | `kernel / grid / block / warp / thread / SM` 如何对应 |
 | [cuda_kernel_advanced.md](./cuda_kernel_advanced.md) | 写 kernel 时的性能直觉 | index、block size、occupancy、register pressure、shared memory、divergence |
